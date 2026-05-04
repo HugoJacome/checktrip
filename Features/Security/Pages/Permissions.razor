@@ -1,0 +1,97 @@
+﻿@page "/permissions"
+
+@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SecurityAdminService Service
+@inject INotificationService Notifications
+
+<RequirePermission ResourceCode="admin.permissions">
+    <MudStack Spacing="3">
+        <MudText Typo="Typo.h5">Permisos por Rol</MudText>
+
+        <MudSelect T="Guid?"
+                   Label="Rol"
+                   Value="_selectedRoleId"
+                   ValueChanged="OnRoleChanged"
+                   Clearable="true">
+
+            @foreach (var role in _roles)
+            {
+                <MudSelectItem T="Guid?" Value="@((Guid?)role.Id)">
+                    @role.Name
+                </MudSelectItem>
+            }
+        </MudSelect>
+
+        @if (_selectedRoleId.HasValue)
+        {
+            <MudTable Items="_permissions" Dense="true" Hover="true" Bordered="true">
+                <HeaderContent>
+                    <MudTh>Recurso</MudTh>
+                    <MudTh>Ver</MudTh>
+                    <MudTh>Crear</MudTh>
+                    <MudTh>Editar</MudTh>
+                    <MudTh>Eliminar</MudTh>
+                    <MudTh>Administrar</MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd>
+                        <MudText Typo="Typo.body2">@context.ResourceName</MudText>
+                        <MudText Typo="Typo.caption">@context.ResourceCode</MudText>
+                    </MudTd>
+                    <MudTd><MudCheckBox T="bool" @bind-Checked="context.CanView" /></MudTd>
+                    <MudTd><MudCheckBox T="bool" @bind-Checked="context.CanCreate" /></MudTd>
+                    <MudTd><MudCheckBox T="bool" @bind-Checked="context.CanEdit" /></MudTd>
+                    <MudTd><MudCheckBox T="bool" @bind-Checked="context.CanDelete" /></MudTd>
+                    <MudTd><MudCheckBox T="bool" @bind-Checked="context.CanManage" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="Save">
+                Guardar permisos
+            </MudButton>
+        }
+    </MudStack>
+</RequirePermission>
+
+@code {
+    private List<RoleListItem> _roles = [];
+    private Guid? _selectedRoleId;
+    private List<PermissionEditModel> _permissions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = await Service.GetRolesAsync();
+    }
+
+    private async Task OnRoleChanged(Guid? roleId)
+    {
+        _selectedRoleId = roleId;
+        _permissions = [];
+
+        if (roleId.HasValue)
+            _permissions = await Service.GetPermissionsAsync(roleId.Value);
+    }
+
+    private async Task Save()
+    {
+        if (!_selectedRoleId.HasValue)
+            return;
+
+        try
+        {
+            await Service.SavePermissionsAsync(_selectedRoleId.Value, _permissions);
+            Notifications.Success("Permisos guardados correctamente.");
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+}

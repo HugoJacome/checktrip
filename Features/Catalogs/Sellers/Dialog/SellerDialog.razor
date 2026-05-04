@@ -1,0 +1,78 @@
+﻿@using MudBlazor
+
+@inject SellerService Service
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+
+        <MudForm @ref="_form">
+
+            <MudTextField Label="Nombre"
+                          @bind-Value="_model.FirstName"
+                          Required="true" />
+
+            <MudTextField Label="Apellido"
+                          @bind-Value="_model.LastName" />
+
+            <MudCheckBox T="bool"
+                         Label="Activo"
+                         @bind-Value="_model.IsActive" />
+
+        </MudForm>
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private SellerEditModel _model = new();
+    private MudForm? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var data = await Service.GetAsync(Id.Value);
+
+            if (data is not null)
+                _model = data;
+        }
+    }
+
+    private async Task Save()
+    {
+        await _form!.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        try
+        {
+            await Service.SaveAsync(_model);
+
+            Snackbar.Add("Vendedor guardado correctamente", Severity.Success);
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

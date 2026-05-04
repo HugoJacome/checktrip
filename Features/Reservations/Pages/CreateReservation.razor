@@ -1,0 +1,352 @@
+﻿@page "/reservations/create"
+
+@using CheckTrip.Web.Features.Reservations.Models
+@using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject ReservationService Service
+@inject BoatRouteScheduleService BRSService
+@inject AgencyService AgencyService
+@inject SellerService SellerService
+@inject INotificationService Notifications
+
+<MudStack Spacing="3">
+    <MudText Typo="Typo.h5">Crear Reserva</MudText>
+
+    <MudPaper Class="pa-4">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect T="Guid?" Label="Agencia" @bind-Value="_model.AgencyId" Clearable="true">
+                    @foreach (var a in _agencies)
+                    {
+                        <MudSelectItem T="Guid?" Value="@a.Id">@a.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudSelect T="Guid?" Label="Vendedor" @bind-Value="_model.SellerId" Clearable="true">
+                    @foreach (var s in _sellers)
+                    {
+                        <MudSelectItem T="Guid?" Value="@s.Id">@s.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudTextField Label="Contacto" @bind-Value="_model.ContactName" />
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudTextField Label="Teléfono contacto" @bind-Value="_model.ContactPhone" />
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudSelect T="Guid?"
+                           Label="Viaje Ida"
+                           Value="_model.OutboundRouteScheduleId"
+                           ValueChanged="OnOutboundTripChanged"
+                           Clearable="true">
+                    @foreach (var v in _routes)
+                    {
+                        <MudSelectItem T="Guid?" Value="@v.Id">@($"{v.Route} ({v.Schedule})")</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudDatePicker Label="Fecha Ida"
+                               Date="_model.OutboundDate"
+                               DateChanged="OnOutboundDateChanged" />
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudSelect T="Guid?"
+                           Label="Viaje Retorno"
+                           Value="_model.ReturnRouteScheduleId"
+                           ValueChanged="OnReturnTripChanged"
+                           Clearable="true">
+                    @foreach (var v in _routes)
+                    {
+                        <MudSelectItem T="Guid?" Value="@v.Id">@($"{v.Route} ({v.Schedule})")</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12" md="6">
+                <MudDatePicker Label="Fecha Retorno"
+                               Date="_model.ReturnDate"
+                               DateChanged="OnReturnDateChanged" />
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.subtitle2">Disponibilidad Ida</MudText>
+                <MudText>Disponibles: @_availability.OutboundAvailable</MudText>
+                <MudText>Seleccionados: @_availability.OutboundSelected</MudText>
+
+                @if (!_availability.HasOutboundCapacity)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+                        No hay cupos suficientes para ida.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4">
+                <MudText Typo="Typo.subtitle2">Disponibilidad Retorno</MudText>
+                <MudText>Disponibles: @_availability.ReturnAvailable</MudText>
+                <MudText>Seleccionados: @_availability.ReturnSelected</MudText>
+
+                @if (!_availability.HasReturnCapacity)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">
+                        No hay cupos suficientes para retorno.
+                    </MudAlert>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudDivider />
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+        <MudText Typo="Typo.h6">Pasajeros</MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="AddPassenger">
+            Agregar pasajero
+        </MudButton>
+    </MudStack>
+
+    <MudTable Items="_model.Passengers" Dense="true" Hover="true" Bordered="true">
+        <HeaderContent>
+            <MudTh>Documento</MudTh>
+            <MudTh>Nombres</MudTh>
+            <MudTh>Edad</MudTh>
+            <MudTh>Ida</MudTh>
+            <MudTh>Retorno</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>
+                <MudTextField T="string"
+                              Value="context.DocumentNumber"
+                              ValueChanged="@((string value) => OnDocumentChanged(context, value))"
+                              OnBlur="@(() => SearchCustomer(context))" />
+            </MudTd>
+
+            <MudTd>
+                <MudTextField T="string" @bind-Value="context.FullName" />
+            </MudTd>
+
+            <MudTd>
+                <MudNumericField T="int?" @bind-Value="context.Age" />
+            </MudTd>
+
+            <MudTd>
+                <MudCheckBox T="bool"
+                             Checked="context.Outbound"
+                             CheckedChanged="@((bool value) => OnOutboundChanged(context, value))" />
+            </MudTd>
+
+            <MudTd>
+                <MudCheckBox T="bool"
+                             Checked="context.Return"
+                             CheckedChanged="@((bool value) => OnReturnChanged(context, value))" />
+            </MudTd>
+
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               Color="Color.Error"
+                               OnClick="@(() => Remove(context))" />
+            </MudTd>
+        </RowTemplate>
+
+        <NoRecordsContent>
+            <MudText>No existen pasajeros agregados.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <MudDivider />
+
+    <MudStack Row="true" Justify="Justify.FlexEnd">
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="@IsSaveDisabled"
+                   OnClick="Save">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                <span>Guardando...</span>
+            }
+            else
+            {
+                <span>Guardar Reserva</span>
+            }
+        </MudButton>
+    </MudStack>
+</MudStack>
+
+@code {
+    private CreateReservationModel _model = new();
+
+    private List<BoatRouteScheduleListItem> _routes = new();
+    private List<AgencyListItem> _agencies = new();
+    private List<SellerListItem> _sellers = new();
+
+    private bool _saving;
+    private ReservationTripAvailabilityModel _availability = new();
+
+    private bool IsSaveDisabled =>
+        _saving ||
+        !_model.Passengers.Any() ||
+        !_availability.HasOutboundCapacity ||
+        !_availability.HasReturnCapacity;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _routes = await BRSService.GetAllAsync();
+        _agencies = await AgencyService.GetAllAsync();
+        _sellers = await SellerService.GetAllAsync();
+
+        AddPassenger();
+        await RefreshAvailability();
+    }
+
+    private async void AddPassenger()
+    {
+        _model.Passengers.Add(new ReservationPassengerModel());
+        await RefreshAvailability();
+        StateHasChanged();
+    }
+
+    private async void Remove(ReservationPassengerModel passenger)
+    {
+        _model.Passengers.Remove(passenger);
+        await RefreshAvailability();
+        StateHasChanged();
+    }
+
+    private async Task OnOutboundTripChanged(Guid? value)
+    {
+        _model.OutboundRouteScheduleId = value;
+        await RefreshAvailability();
+    }
+
+    private async Task OnOutboundDateChanged(DateTime? value)
+    {
+        _model.OutboundDate = value;
+        await RefreshAvailability();
+    }
+
+    private async Task OnReturnTripChanged(Guid? value)
+    {
+        _model.ReturnRouteScheduleId = value;
+        await RefreshAvailability();
+    }
+
+    private async Task OnReturnDateChanged(DateTime? value)
+    {
+        _model.ReturnDate = value;
+        await RefreshAvailability();
+    }
+
+    private void OnDocumentChanged(ReservationPassengerModel passenger, string value)
+    {
+        passenger.DocumentNumber = value;
+    }
+
+    private async Task OnOutboundChanged(ReservationPassengerModel passenger, bool value)
+    {
+        passenger.Outbound = value;
+        await RefreshAvailability();
+    }
+
+    private async Task OnReturnChanged(ReservationPassengerModel passenger, bool value)
+    {
+        passenger.Return = value;
+        await RefreshAvailability();
+    }
+
+    private async Task SearchCustomer(ReservationPassengerModel passenger)
+    {
+        if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+            return;
+
+        var customer = await Service.FindCustomerAsync(passenger.DocumentNumber);
+
+        if (customer is null)
+            return;
+
+        passenger.DocumentType = customer.DocumentType;
+        passenger.FullName = customer.FullName;
+        passenger.Age = customer.Age;
+
+        Notifications.Info("Cliente encontrado y cargado.");
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            _saving = true;
+
+            await RefreshAvailability();
+
+            await Service.CreateAsync(_model);
+
+            Notifications.Success("Reserva creada correctamente.");
+
+            _model = new CreateReservationModel();
+            _availability = new ReservationTripAvailabilityModel();
+
+            AddPassenger();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task RefreshAvailability()
+    {
+        _availability.OutboundSelected = _model.Passengers.Count(x => x.Outbound);
+        _availability.ReturnSelected = _model.Passengers.Count(x => x.Return);
+
+        _availability.OutboundAvailable = 0;
+        _availability.ReturnAvailable = 0;
+
+        if (_model.OutboundRouteScheduleId.HasValue && _model.OutboundDate.HasValue)
+        {
+            var result = await Service.GetAvailabilityAsync(
+                _model.OutboundRouteScheduleId.Value,
+                _model.OutboundDate.Value,
+                outbound: true);
+
+            _availability.OutboundAvailable = result.Available;
+        }
+
+        if (_model.ReturnRouteScheduleId.HasValue && _model.ReturnDate.HasValue)
+        {
+            var result = await Service.GetAvailabilityAsync(
+                _model.ReturnRouteScheduleId.Value,
+                _model.ReturnDate.Value,
+                outbound: false);
+
+            _availability.ReturnAvailable = result.Available;
+        }
+    }
+}

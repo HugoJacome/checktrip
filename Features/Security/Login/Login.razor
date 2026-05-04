@@ -1,0 +1,53 @@
+﻿@page "/login"
+
+@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using MudBlazor
+
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="height:100vh;">
+    <MudPaper Class="pa-6" Elevation="4" Style="width:100%;">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.h5">CheckTrip</MudText>
+            <MudText Typo="Typo.body2">Ingrese sus credenciales</MudText>
+
+            <MudTextField T="string"
+                          Label="Usuario"
+                          @bind-Value="_model.Username"
+                          Immediate="true" />
+
+            <MudTextField T="string"
+                          Label="Contraseña"
+                          @bind-Value="_model.Password"
+                          InputType="InputType.Password"
+                          Immediate="true" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="DoLogin"
+                       FullWidth="true">
+                Ingresar
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private LoginModel _model = new();
+
+    private async Task DoLogin()
+    {
+        var user = await AuthService.LoginAsync(_model);
+
+        if (user is null)
+        {
+            Snackbar.Add("Usuario o contraseña incorrectos.", Severity.Error);
+            return;
+        }
+
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+}

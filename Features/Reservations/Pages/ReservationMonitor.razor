@@ -1,0 +1,232 @@
+﻿@page "/reservations/monitor"
+
+@using CheckAccess.Features.Tickets.Pages
+@using CheckTrip.Web.Features.Reservations.Models
+@using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject ReservationService Service
+@inject AgencyService AgencyService
+@inject IDialogService Dialog
+@inject INotificationService Notifications
+
+<RequirePermission ResourceCode="reservations.monitor">
+    <MudStack Spacing="3">
+        <MudText Typo="Typo.h5">Monitor de Reservas</MudText>
+
+        <MudPaper Class="pa-4">
+            <MudGrid>
+                <MudItem xs="12" md="3">
+                    <MudDatePicker Label="Desde" @bind-Date="_dateFrom" />
+                </MudItem>
+
+                <MudItem xs="12" md="3">
+                    <MudDatePicker Label="Hasta" @bind-Date="_dateTo" />
+                </MudItem>
+
+                <MudItem xs="12" md="2">
+                    <MudSelect T="string" Label="Estado" @bind-Value="_status">
+                        <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                        <MudSelectItem Value="@("Active")">Activa</MudSelectItem>
+                        <MudSelectItem Value="@("Cancelled")">Cancelada</MudSelectItem>
+                        <MudSelectItem Value="@("Finished")">Finalizada</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="2">
+                    <MudSelect T="string" Label="Pago" @bind-Value="_paymentStatus">
+                        <MudSelectItem Value="@("")">Todos</MudSelectItem>
+                        <MudSelectItem Value="@("Pending")">Pendiente</MudSelectItem>
+                        <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
+                        <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="2">
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="Load"
+                               Class="mt-4">
+                        Buscar
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        <MudTable Items="_filteredItems" Dense="true" Hover="true" Bordered="true">
+            <HeaderContent>
+                <MudTh>Código</MudTh>
+                <MudTh>Fecha</MudTh>
+                <MudTh>Agencia</MudTh>
+                <MudTh>Vendedor</MudTh>
+                <MudTh>Contacto</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh>Pago</MudTh>
+                <MudTh>Pasajeros</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>@context.ReservationCode</MudTd>
+                <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+                <MudTd>@context.Agency</MudTd>
+                <MudTd>@context.Seller</MudTd>
+                <MudTd>
+                    <MudText Typo="Typo.body2">@context.ContactName</MudText>
+                    <MudText Typo="Typo.caption">@context.ContactPhone</MudText>
+                </MudTd>
+                <MudTd>
+                    <MudChip T="string" Color="@GetStatusColor(context.Status)">
+                        @context.Status
+                    </MudChip>
+                </MudTd>
+                <MudTd>
+                    <MudSelect T="string"
+                               Dense="true"
+                               Value="context.PaymentStatus"
+                               ValueChanged="@((string value) => ChangePayment(context.Id, value))">
+                        <MudSelectItem Value="@("Pending")">Pendiente</MudSelectItem>
+                        <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
+                        <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
+                    </MudSelect>
+                </MudTd>
+                <MudTd>@context.PassengerCount</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small"
+                               Variant="Variant.Text"
+                               OnClick="@(() => Detail(context.Id))">
+                        Ver
+                    </MudButton>
+
+                    <MudButton Size="Size.Small"
+                               Color="Color.Success"
+                               Variant="Variant.Text"
+                               Disabled="@(context.Status == "Finished" || context.Status == "Cancelled")"
+                               OnClick="@(() => Finish(context.Id))">
+                        Finalizar
+                    </MudButton>
+
+                    <MudButton Size="Size.Small"
+                               Color="Color.Error"
+                               Variant="Variant.Text"
+                               Disabled="@(context.Status == "Cancelled" || context.Status == "Finished")"
+                               OnClick="@(() => Cancel(context.Id))">
+                        Cancelar
+                    </MudButton>
+                    <MudButton Size="Size.Small"
+                               Variant="Variant.Text"
+                               Color="Color.Primary"
+                               Disabled="@(context.Status == "Cancelled")"
+                               OnClick="@(() => Tickets(context.Id))">
+                        Boletos
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText>No existen reservas con los filtros seleccionados.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudStack>
+</RequirePermission>
+
+@code {
+    private List<ReservationMonitorItem> _items = [];
+    private List<ReservationMonitorItem> _filteredItems = [];
+
+    private DateTime? _dateFrom = DateTime.Today;
+    private DateTime? _dateTo = DateTime.Today;
+    private string _status = "";
+    private string _paymentStatus = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetMonitorAsync();
+
+        _filteredItems = _items
+            .Where(x => !_dateFrom.HasValue || x.CreatedAt.Date >= _dateFrom.Value.Date)
+            .Where(x => !_dateTo.HasValue || x.CreatedAt.Date <= _dateTo.Value.Date)
+            .Where(x => string.IsNullOrWhiteSpace(_status) || x.Status == _status)
+            .Where(x => string.IsNullOrWhiteSpace(_paymentStatus) || x.PaymentStatus == _paymentStatus)
+            .ToList();
+    }
+
+    private async Task Detail(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["ReservationId"] = id
+        };
+
+        await Dialog.ShowAsync<ReservationDetailDialog>("Detalle de Reserva", parameters);
+    }
+
+    private async Task ChangePayment(Guid id, string value)
+    {
+        try
+        {
+            await Service.ChangePaymentStatusAsync(id, value);
+            Notifications.Success("Estado de pago actualizado.");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private async Task Cancel(Guid id)
+    {
+        try
+        {
+            await Service.CancelAsync(id, "Cancelado desde monitor");
+            Notifications.Success("Reserva cancelada.");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private async Task Finish(Guid id)
+    {
+        try
+        {
+            await Service.FinishAsync(id);
+            Notifications.Success("Reserva finalizada.");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private Color GetStatusColor(string status)
+    {
+        return status switch
+        {
+            "Active" => Color.Info,
+            "Cancelled" => Color.Error,
+            "Finished" => Color.Success,
+            "Blocked" => Color.Warning,
+            _ => Color.Default
+        };
+    }
+    private async Task Tickets(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["ReservationId"] = id
+        };
+
+        await Dialog.ShowAsync<TicketsDialog>("Boletos", parameters);
+    }
+}

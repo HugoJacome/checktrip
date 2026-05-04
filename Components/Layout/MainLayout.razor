@@ -1,0 +1,97 @@
+﻿@inherits LayoutComponentBase
+
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Features.Security.Models
+
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+@if (!_loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_user is null && IsLoginPage)
+{
+    @Body
+}
+else if (_user is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                           Color="Color.Inherit"
+                           Edge="Edge.Start"
+                           OnClick="@ToggleDrawer" />
+
+            <MudText Typo="Typo.h6">CheckTrip</MudText>
+
+            <MudSpacer />
+
+            <MudText Typo="Typo.body2" Class="me-4">
+                @_user.FullName
+            </MudText>
+
+            <MudButton Color="Color.Inherit" OnClick="Logout">
+                Salir
+            </MudButton>
+        </MudAppBar>
+
+        <MudDrawer @bind-Open="_drawerOpen"
+                   Variant="DrawerVariant.Responsive"
+                   Elevation="2">
+            <NavMenu />
+        </MudDrawer>
+
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+}
+
+@code {
+    private bool _loaded;
+    private bool _drawerOpen = true;
+    private CurrentUserModel? _user;
+
+    private bool IsLoginPage =>
+        Navigation.Uri.Contains("/login", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _user = await AuthService.GetCurrentUserAsync();
+
+        if (_user is null && !IsLoginPage)
+        {
+            Navigation.NavigateTo("/login", forceLoad: true);
+            return;
+        }
+
+        _loaded = true;
+        StateHasChanged();
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

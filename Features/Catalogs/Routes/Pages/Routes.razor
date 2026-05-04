@@ -1,0 +1,68 @@
+﻿@page "/routes"
+@using CheckAccess.Features.Security
+@using MudBlazor
+@using CheckAccess.Features.Catalogs.Routes.Dialog
+
+@inject RouteService Service
+@inject IDialogService Dialog
+
+<RequirePermission ResourceCode="catalog.routes">
+    <MudText Typo="Typo.h5">Rutas</MudText>
+    <MudText Typo="Typo.h5">Rutas</MudText>
+
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="New">
+        Nueva Ruta
+    </MudButton>
+
+    <MudTable T="RouteListItem" Items="_items" Dense="true" Hover="true">
+        <HeaderContent>
+            <MudTh>Origen</MudTh>
+            <MudTh>Destino</MudTh>
+            <MudTh>Descripción</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+
+        <RowTemplate>
+            <MudTd>@context.Origin</MudTd>
+            <MudTd>@context.Destination</MudTd>
+            <MudTd>@context.Description</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" OnClick="@(() => Edit(context.Id))">Editar</MudButton>
+                <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Id))">Eliminar</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</RequirePermission>
+
+@code {
+    private List<RouteListItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetAllAsync();
+    }
+
+    private async Task New()
+    {
+        await Dialog.ShowAsync<RouteDialog>("Nueva Ruta");
+        await Load();
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters { ["Id"] = id };
+        await Dialog.ShowAsync<RouteDialog>("Editar Ruta", parameters);
+        await Load();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await Service.DeleteAsync(id);
+        await Load();
+    }
+}

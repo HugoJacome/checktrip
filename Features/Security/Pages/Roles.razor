@@ -1,0 +1,83 @@
+﻿@page "/roles"
+
+@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SecurityAdminService Service
+@inject IDialogService Dialog
+@inject INotificationService Notifications
+
+<RequirePermission ResourceCode="admin.roles">
+    <MudStack Spacing="3">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h5">Roles</MudText>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="New">
+                Nuevo Rol
+            </MudButton>
+        </MudStack>
+
+        <MudTable Items="_items" Dense="true" Hover="true" Bordered="true">
+            <HeaderContent>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh Style="width:120px;">Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>
+                    <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)">
+                        @(context.IsActive ? "Activo" : "Inactivo")
+                    </MudChip>
+                </MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" OnClick="@(() => Edit(context.Id))">
+                        Editar
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</RequirePermission>
+
+@code {
+    private List<RoleListItem> _items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetRolesAsync();
+    }
+
+    private async Task New()
+    {
+        var dialog = await Dialog.ShowAsync<RoleDialog>("Nuevo Rol");
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            Notifications.Success("Rol guardado correctamente.");
+            await Load();
+        }
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters { ["Id"] = id };
+        var dialog = await Dialog.ShowAsync<RoleDialog>("Editar Rol", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            Notifications.Success("Rol guardado correctamente.");
+            await Load();
+        }
+    }
+}

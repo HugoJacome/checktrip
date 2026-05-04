@@ -1,0 +1,79 @@
+﻿@using CheckTrip.Web.Features.Catalogs.Schedules.Services
+@using MudBlazor
+
+@inject ScheduleService Service
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField T="string"
+                          Label="Nombre"
+                          @bind-Value="_model.Name"
+                          Required="true" />
+
+            <MudTimePicker Label="Hora de salida"
+                           AmPm="false"
+                           Time="@_model.DepartureTime"
+                           TimeChanged="OnTimeChanged" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="Save">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid? Id { get; set; }
+
+    private ScheduleEditModel _model = new()
+    {
+        DepartureTime = new TimeSpan(8, 0, 0)
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is not null)
+        {
+            var data = await Service.GetAsync(Id.Value);
+            if (data is not null)
+                _model = data;
+        }
+    }
+
+    private void OnTimeChanged(TimeSpan? value)
+    {
+        if (value.HasValue)
+            _model.DepartureTime = value.Value;
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await Service.SaveAsync(_model);
+            Snackbar.Add("Horario guardado correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

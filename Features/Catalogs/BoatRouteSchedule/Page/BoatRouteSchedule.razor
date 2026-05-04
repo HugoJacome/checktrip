@@ -1,0 +1,80 @@
+﻿@page "/boat-routes"
+
+@using CheckAccess.Features.Catalogs.BoatRouteSchedule.Dialog
+@using MudBlazor
+
+@inject BoatRouteScheduleService Service
+@inject IDialogService Dialog
+
+<MudText Typo="Typo.h5">Configuración de Viajes</MudText>
+
+<MudButton OnClick="New" Variant="Variant.Filled" Color="Color.Primary">
+    Nuevo
+</MudButton>
+
+<MudTable T="BoatRouteScheduleListItem" Items="_items">
+    <HeaderContent>
+        <MudTh>Bote</MudTh>
+        <MudTh>Ruta</MudTh>
+        <MudTh>Horario</MudTh>
+        <MudTh>Precio</MudTh>
+        <MudTh>Días</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+
+    <RowTemplate Context="item">
+        <MudTd>@item.Boat</MudTd>
+        <MudTd>@item.Route</MudTd>
+        <MudTd>@item.Schedule</MudTd>
+        <MudTd>@item.Price</MudTd>
+        <MudTd>@item.Days</MudTd>
+
+        <MudTd>
+            <MudButton OnClick="@(() => Edit(item.Id))">Editar</MudButton>
+            <MudButton Color="Color.Error" OnClick="@(() => Delete(item.Id))">Eliminar</MudButton>
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<BoatRouteScheduleListItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetAllAsync();
+    }
+
+    private async Task New()
+    {
+        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>("Nuevo");
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>("Editar", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await Service.DeleteAsync(id);
+        await Load();
+    }
+}

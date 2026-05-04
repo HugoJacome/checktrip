@@ -1,0 +1,183 @@
+﻿@using MudBlazor
+<MudNavMenu>
+
+    <MudText Typo="Typo.subtitle2" Class="px-4 py-2">
+        Menú principal
+    </MudText>
+
+    <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
+        <MudNavLink Href="/routes" Icon="@Icons.Material.Filled.Route">
+            Rutas
+        </MudNavLink>
+
+        <MudNavLink Href="/agencies" Icon="@Icons.Material.Filled.Business">
+            Agencias
+        </MudNavLink>
+
+        <MudNavLink Href="/sellers" Icon="@Icons.Material.Filled.Person">
+            Vendedores
+        </MudNavLink>
+
+        <MudNavLink Href="/boats" Icon="@Icons.Material.Filled.DirectionsBoat">
+            Botes
+        </MudNavLink>
+
+        <MudNavLink Href="/schedules" Icon="@Icons.Material.Filled.Schedule">
+            Horarios
+        </MudNavLink>
+
+        <MudNavLink Href="/boat-routes" Icon="@Icons.Material.Filled.Map">
+            Configuración de viajes
+        </MudNavLink>
+    </MudNavGroup>
+
+    <MudNavGroup Title="Reservas" Icon="@Icons.Material.Filled.ConfirmationNumber">
+        <MudNavLink Href="/reservations/create" Icon="@Icons.Material.Filled.Add">
+            Crear reserva
+        </MudNavLink>
+
+        <MudNavLink Href="/reservations/monitor" Icon="@Icons.Material.Filled.TableView">
+            Monitor
+        </MudNavLink>
+    </MudNavGroup>
+
+    <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.AdminPanelSettings">
+        <MudNavLink Href="/users" Icon="@Icons.Material.Filled.People">
+            Usuarios
+        </MudNavLink>
+
+        <MudNavLink Href="/roles" Icon="@Icons.Material.Filled.Security">
+            Roles
+        </MudNavLink>
+
+        <MudNavLink Href="/permissions" Icon="@Icons.Material.Filled.Lock">
+            Permisos
+        </MudNavLink>
+    </MudNavGroup>
+
+</MudNavMenu>
+
+@* 
+@using CheckTrip.Web.Features.Security.Services
+@inject PermissionService Permissions
+
+<MudNavMenu>
+    <MudText Typo="Typo.subtitle2" Class="px-4 py-2">
+        Menú principal
+    </MudText>
+
+    @if (_showCatalogs)
+    {
+        <MudNavGroup Title="Catálogos" Icon="@Icons.Material.Filled.List" Expanded="true">
+            @if (_canRoutes)
+            {
+                <MudNavLink Href="/routes" Icon="@Icons.Material.Filled.Route">Rutas</MudNavLink>
+            }
+
+            @if (_canAgencies)
+            {
+                <MudNavLink Href="/agencies" Icon="@Icons.Material.Filled.Business">Agencias</MudNavLink>
+            }
+
+            @if (_canSellers)
+            {
+                <MudNavLink Href="/sellers" Icon="@Icons.Material.Filled.Person">Vendedores</MudNavLink>
+            }
+
+            @if (_canBoats)
+            {
+                <MudNavLink Href="/boats" Icon="@Icons.Material.Filled.DirectionsBoat">Botes</MudNavLink>
+            }
+
+            @if (_canSchedules)
+            {
+                <MudNavLink Href="/schedules" Icon="@Icons.Material.Filled.Schedule">Horarios</MudNavLink>
+            }
+
+            @if (_canBoatRouteSchedules)
+            {
+                <MudNavLink Href="/boat-routes" Icon="@Icons.Material.Filled.Map">Configuración de viajes</MudNavLink>
+            }
+        </MudNavGroup>
+    }
+
+    @if (_showReservations)
+    {
+        <MudNavGroup Title="Reservas" Icon="@Icons.Material.Filled.ConfirmationNumber">
+            @if (_canCreateReservation)
+            {
+                <MudNavLink Href="/reservations/create" Icon="@Icons.Material.Filled.Add">
+                    Crear reserva
+                </MudNavLink>
+            }
+
+            @if (_canMonitorReservation)
+            {
+                <MudNavLink Href="/reservations/monitor" Icon="@Icons.Material.Filled.TableView">
+                    Monitor
+                </MudNavLink>
+            }
+        </MudNavGroup>
+    }
+
+    @if (_showAdmin)
+    {
+        <MudNavGroup Title="Administración" Icon="@Icons.Material.Filled.AdminPanelSettings">
+            @if (_canUsers)
+            {
+                <MudNavLink Href="/users" Icon="@Icons.Material.Filled.People">Usuarios</MudNavLink>
+            }
+
+            @if (_canRoles)
+            {
+                <MudNavLink Href="/roles" Icon="@Icons.Material.Filled.Security">Roles</MudNavLink>
+            }
+
+            @if (_canPermissions)
+            {
+                <MudNavLink Href="/permissions" Icon="@Icons.Material.Filled.Lock">Permisos</MudNavLink>
+            }
+        </MudNavGroup>
+    }
+</MudNavMenu>
+
+@code {
+    private bool _canRoutes;
+    private bool _canAgencies;
+    private bool _canSellers;
+    private bool _canBoats;
+    private bool _canSchedules;
+    private bool _canBoatRouteSchedules;
+
+    private bool _canCreateReservation;
+    private bool _canMonitorReservation;
+
+    private bool _canUsers;
+    private bool _canRoles;
+    private bool _canPermissions;
+
+    private bool _showCatalogs;
+    private bool _showReservations;
+    private bool _showAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canRoutes = await Permissions.CanViewAsync("catalog.routes");
+        _canAgencies = await Permissions.CanViewAsync("catalog.agencies");
+        _canSellers = await Permissions.CanViewAsync("catalog.sellers");
+        _canBoats = await Permissions.CanViewAsync("catalog.boats");
+        _canSchedules = await Permissions.CanViewAsync("catalog.schedules");
+        _canBoatRouteSchedules = await Permissions.CanViewAsync("catalog.boat-route-schedules");
+
+        _canCreateReservation = await Permissions.CanViewAsync("reservations.create");
+        _canMonitorReservation = await Permissions.CanViewAsync("reservations.monitor");
+
+        _canUsers = await Permissions.CanViewAsync("admin.users");
+        _canRoles = await Permissions.CanViewAsync("admin.roles");
+        _canPermissions = await Permissions.CanViewAsync("admin.permissions");
+
+        _showCatalogs = _canRoutes || _canAgencies || _canSellers || _canBoats || _canSchedules || _canBoatRouteSchedules;
+        _showReservations = _canCreateReservation || _canMonitorReservation;
+        _showAdmin = _canUsers || _canRoles || _canPermissions;
+    }
+} *@

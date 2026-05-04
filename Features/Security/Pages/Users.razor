@@ -1,0 +1,91 @@
+﻿@page "/users"
+
+@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SecurityAdminService Service
+@inject IDialogService Dialog
+@inject INotificationService Notifications
+
+<RequirePermission ResourceCode="admin.users">
+    <MudStack Spacing="3">
+        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h5">Usuarios</MudText>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="New">
+                Nuevo Usuario
+            </MudButton>
+        </MudStack>
+
+        <MudTable Items="_items" Dense="true" Hover="true" Bordered="true">
+            <HeaderContent>
+                <MudTh>Usuario</MudTh>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Roles</MudTh>
+                <MudTh>Estado</MudTh>
+                <MudTh Style="width:120px;">Acciones</MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd>@context.Username</MudTd>
+                <MudTd>@context.FullName</MudTd>
+                <MudTd>@context.Roles</MudTd>
+                <MudTd>
+                    <MudChip T="string" Color="@(context.IsActive ? Color.Success : Color.Error)">
+                        @(context.IsActive ? "Activo" : "Inactivo")
+                    </MudChip>
+                </MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small" OnClick="@(() => Edit(context.Id))">
+                        Editar
+                    </MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudStack>
+</RequirePermission>
+
+@code {
+    private List<UserListItem> _items = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetUsersAsync();
+    }
+
+    private async Task New()
+    {
+        var dialog = await Dialog.ShowAsync<UserDialog>("Nuevo Usuario");
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            Notifications.Success("Usuario guardado correctamente.");
+            await Load();
+        }
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var dialog = await Dialog.ShowAsync<UserDialog>("Editar Usuario", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            Notifications.Success("Usuario guardado correctamente.");
+            await Load();
+        }
+    }
+}

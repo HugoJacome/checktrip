@@ -1,0 +1,168 @@
+﻿@page "/agencies"
+
+@using CheckAccess.Features.Catalogs.Agencies.Dialog
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+@inject AgencyService Service
+@inject IDialogService Dialog
+@inject INotificationService Notifications
+
+<MudStack Spacing="3">
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h5">Agencias</MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="CreateAsync">
+            Nueva agencia
+        </MudButton>
+    </MudStack>
+
+    <MudPaper Class="pa-4" Elevation="1">
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else
+        {
+            <MudTable Items="_items"
+                      Dense="true"
+                      Hover="true"
+                      Bordered="true"
+                      Striped="true">
+
+                <HeaderContent>
+                    <MudTh>Nombre</MudTh>
+                    <MudTh>RUC</MudTh>
+                    <MudTh Style="width:160px;">Acciones</MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd DataLabel="Nombre">@context.Name</MudTd>
+                    <MudTd DataLabel="RUC">@context.Ruc</MudTd>
+
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Color="Color.Primary"
+                                       Size="Size.Small"
+                                       OnClick="@(() => EditAsync(context.Id))" />
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Color="Color.Error"
+                                       Size="Size.Small"
+                                       OnClick="@(() => DeleteAsync(context.Id))" />
+                    </MudTd>
+                </RowTemplate>
+
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2">No existen agencias registradas.</MudText>
+                </NoRecordsContent>
+
+            </MudTable>
+        }
+    </MudPaper>
+
+</MudStack>
+
+@code {
+    private bool _loading = true;
+    private List<AgencyListItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error($"Error al cargar agencias: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Id"] = null
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<AgencyDialog>(
+            "Nueva agencia",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task EditAsync(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<AgencyDialog>(
+            "Editar agencia",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        // var confirm = await Dialog.ShowMessageBox(
+        //     title: "Confirmar eliminación",
+        //     markupMessage: (MarkupString)"¿Está seguro de eliminar esta agencia?",
+        //     yesText: "Eliminar",
+        //     cancelText: "Cancelar");
+
+        // if (confirm != true)
+        //     return;
+
+        try
+        {
+            await Service.DeleteAsync(id);
+            Notifications.Success("Agencia eliminada correctamente.");
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error($"Error al eliminar agencia: {ex.Message}");
+        }
+    }
+}

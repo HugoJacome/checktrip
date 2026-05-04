@@ -1,0 +1,69 @@
+﻿@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SecurityAdminService Service
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField Label="Nombre"
+                          @bind-Value="_model.Name"
+                          Required="true" />
+
+            <MudCheckBox T="bool"
+                         Label="Activo"
+                         @bind-Checked="_model.IsActive" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="Save">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid? Id { get; set; }
+
+    private RoleEditModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id is not null)
+        {
+            var role = await Service.GetRoleAsync(Id.Value);
+            if (role is not null)
+                _model = role;
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await Service.SaveRoleAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

@@ -1,0 +1,94 @@
+﻿@page "/sellers"
+@using CheckAccess.Features.Catalogs.Sellers.Dialog
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SellerService Service
+@inject IDialogService Dialog
+@inject INotificationService Notify
+
+<MudText Typo="Typo.h5" Class="mb-4">Vendedores</MudText>
+
+<MudStack Row="true" Class="mb-4">
+    <MudButton OnClick="New" Variant="Variant.Filled" Color="Color.Primary">
+        Nuevo
+    </MudButton>
+</MudStack>
+
+<MudTable Items="_items" Hover="true" Dense="true">
+    <HeaderContent>
+        <MudTh>Nombre</MudTh>
+        <MudTh>Estado</MudTh>
+        <MudTh></MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd DataLabel="Nombre">@context.Name</MudTd>
+
+        <MudTd DataLabel="Estado">
+            <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)">
+                @(context.IsActive ? "Activo" : "Inactivo")
+            </MudChip>
+        </MudTd>
+
+        <MudTd>
+            <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                           OnClick="@(() => Edit(context.Id))" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                           Color="Color.Error"
+                           OnClick="@(() => Delete(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+</MudTable>
+
+@code {
+    private List<SellerListItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetAllAsync();
+    }
+
+    private async Task New()
+    {
+        var dialog = await Dialog.ShowAsync<SellerDialog>("Nuevo Vendedor");
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Id", id }
+        };
+
+        var dialog = await Dialog.ShowAsync<SellerDialog>("Editar Vendedor", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        try
+        {
+            await Service.DeleteAsync(id);
+            Notify.Success("Vendedor eliminado");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notify.Error(ex.Message);
+        }
+    }
+}

@@ -1,0 +1,114 @@
+﻿@using CheckTrip.Web.Features.Tickets.Models
+@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject TicketService TicketService
+@inject INotificationService Notifications
+@inject IDialogService DialogService
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                <MudText Typo="Typo.h6">Boletos</MudText>
+
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           OnClick="Generate">
+                    Generar boletos
+                </MudButton>
+            </MudStack>
+
+            <MudTable Items="_tickets" Dense="true" Hover="true" Bordered="true">
+                <HeaderContent>
+                    <MudTh>Boleto</MudTh>
+                    <MudTh>Documento</MudTh>
+                    <MudTh>Pasajero</MudTh>
+                    <MudTh>Viaje</MudTh>
+                    <MudTh>Impreso</MudTh>
+                    <MudTh>Reimp.</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd>@context.TicketNumber</MudTd>
+                    <MudTd>@context.DocumentNumber</MudTd>
+                    <MudTd>@context.PassengerName</MudTd>
+                    <MudTd>@context.TripType</MudTd>
+                    <MudTd>
+                        <MudChip T="string" Color="@(context.IsPrinted ? Color.Success : Color.Warning)">
+                            @(context.IsPrinted ? "Sí" : "No")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>@context.ReprintCount</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Text"
+                                   OnClick="@(() => MarkPrinted(context.Id))">
+                            @(context.IsPrinted ? "Reimprimir" : "Imprimir")
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+
+                <NoRecordsContent>
+                    <MudText>No existen boletos generados.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid ReservationId { get; set; }
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private List<TicketListItem> _tickets = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _tickets = await TicketService.GetByReservationAsync(ReservationId);
+    }
+
+    private async Task Generate()
+    {
+        try
+        {
+            await TicketService.GenerateForReservationAsync(ReservationId);
+            Notifications.Success("Boletos generados correctamente.");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private async Task MarkPrinted(Guid ticketId)
+    {
+        try
+        {
+            await TicketService.MarkPrintedAsync(ticketId);
+            Notifications.Success("Boleto actualizado correctamente.");
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

@@ -1,0 +1,73 @@
+﻿@using MudBlazor
+
+@inject AgencyService Service
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField Label="Nombre"
+                          @bind-Value="_model.Name"
+                          Required="true" />
+
+            <MudTextField Label="RUC"
+                          @bind-Value="_model.Ruc" />
+
+            <MudCheckBox T="bool"
+                         Label="Activo"
+                         @bind-Value="_model.IsActive" />
+        </MudForm>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Save">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid? Id { get; set; }
+
+    private AgencyEditModel _model = new();
+    private MudForm? _form;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            var data = await Service.GetAsync(Id.Value);
+
+            if (data is not null)
+                _model = data;
+        }
+    }
+
+    private async Task Save()
+    {
+        await _form!.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        try
+        {
+            await Service.SaveAsync(_model);
+
+            Snackbar.Add("Agencia guardada correctamente", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

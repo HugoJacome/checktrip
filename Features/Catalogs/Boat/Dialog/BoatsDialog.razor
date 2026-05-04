@@ -1,0 +1,58 @@
+﻿@using MudBlazor
+@inject BoatService Service
+@inject AgencyService AgencyService
+
+<MudDialog>
+    <DialogContent>
+
+        <MudTextField Label="Nombre" @bind-Value="_model.Name" />
+        <MudNumericField Label="Capacidad" @bind-Value="_model.Capacity" />
+        <MudNumericField Label="Capacidad Extra" @bind-Value="_model.ExtraCapacity" />
+
+        <MudSelect T="Guid?" Label="Agencia" @bind-Value="_model.AgencyId">
+            @foreach (var a in _agencies)
+            {
+                <MudSelectItem Value="@a.Id">@a.Name</MudSelectItem>
+            }
+        </MudSelect>
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Save" Color="Color.Primary">Guardar</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    [CascadingParameter]
+    IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private BoatEditModel _model = new();
+    private List<AgencyListItem> _agencies = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _agencies = await AgencyService.GetAllAsync();
+
+        if (Id != null)
+        {
+            var data = await Service.GetAsync(Id.Value);
+            if (data != null)
+                _model = data;
+        }
+    }
+
+    private async Task Save()
+    {
+        await Service.SaveAsync(_model);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

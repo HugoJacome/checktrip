@@ -1,0 +1,40 @@
+﻿@using CheckTrip.Web.Features.Security.Services
+@using MudBlazor
+@inject PermissionService Permissions
+@inject NavigationManager Navigation
+
+@if (!_loaded)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_allowed)
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public string ResourceCode { get; set; } = default!;
+    [Parameter] public string Action { get; set; } = "view";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _loaded;
+    private bool _allowed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _allowed = Action.ToLower() switch
+        {
+            "view" => await Permissions.CanViewAsync(ResourceCode),
+            "create" => await Permissions.CanCreateAsync(ResourceCode),
+            "edit" => await Permissions.CanEditAsync(ResourceCode),
+            "delete" => await Permissions.CanDeleteAsync(ResourceCode),
+            "manage" => await Permissions.CanManageAsync(ResourceCode),
+            _ => false
+        };
+
+        _loaded = true;
+
+        if (!_allowed)
+            Navigation.NavigateTo("/access-denied");
+    }
+}

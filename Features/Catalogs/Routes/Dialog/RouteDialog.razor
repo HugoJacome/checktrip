@@ -1,0 +1,47 @@
+﻿@using MudBlazor
+@inject RouteService Service
+
+<MudDialog>
+    <DialogContent>
+
+        <MudTextField T="string" Label="Origen" @bind-Value="_model.Origin" />
+        <MudTextField T="string" Label="Destino" @bind-Value="_model.Destination" />
+        <MudTextField T="string" Label="Descripción" @bind-Value="_model.Description" />
+
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Save" Color="Color.Primary">Guardar</MudButton>
+        <MudButton OnClick="Cancel">Cancelar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid? Id { get; set; }
+
+    private RouteEditModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != null)
+        {
+            var data = await Service.GetAsync(Id.Value);
+            if (data != null)
+                _model = data;
+        }
+    }
+
+    private async Task Save()
+    {
+        await Service.SaveAsync(_model);
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

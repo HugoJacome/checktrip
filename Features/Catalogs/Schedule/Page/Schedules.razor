@@ -1,0 +1,90 @@
+﻿@page "/schedules"
+
+@using CheckTrip.Web.Features.Catalogs.Schedules.Services
+@using MudBlazor
+@using CheckAccess.Features.Catalogs.Schedule.Dialog
+
+@inject ScheduleService Service
+@inject IDialogService Dialog
+
+<MudStack Spacing="3">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h5">Horarios</MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   OnClick="New">
+            Nuevo Horario
+        </MudButton>
+    </MudStack>
+
+    <MudTable T="ScheduleListItem" Items="_items" Dense="true" Hover="true" Bordered="true">
+        <HeaderContent>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Hora salida</MudTh>
+            <MudTh Style="width:160px;">Acciones</MudTh>
+        </HeaderContent>
+
+        <RowTemplate Context="item">
+            <MudTd>@item.Name</MudTd>
+            <MudTd>@item.DisplayTime</MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small"
+                           Variant="Variant.Text"
+                           OnClick="@(() => Edit(item.Id))">
+                    Editar
+                </MudButton>
+
+                <MudButton Size="Size.Small"
+                           Color="Color.Error"
+                           Variant="Variant.Text"
+                           OnClick="@(() => Delete(item.Id))">
+                    Eliminar
+                </MudButton>
+            </MudTd>
+        </RowTemplate>
+
+        <NoRecordsContent>
+            <MudText>No existen horarios registrados.</MudText>
+        </NoRecordsContent>
+    </MudTable>
+</MudStack>
+
+@code {
+    private List<ScheduleListItem> _items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _items = await Service.GetAllAsync();
+    }
+
+    private async Task New()
+    {
+        var dialog = await Dialog.ShowAsync<ScheduleDialog>("Nuevo Horario");
+        await dialog.Result;
+        await Load();
+    }
+
+    private async Task Edit(Guid id)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var dialog = await Dialog.ShowAsync<ScheduleDialog>("Editar Horario", parameters);
+        await dialog.Result;
+        await Load();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        await Service.DeleteAsync(id);
+        await Load();
+    }
+}

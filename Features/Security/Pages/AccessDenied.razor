@@ -1,0 +1,20 @@
+﻿@page "/access-denied"
+@using MudBlazor
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-10">
+    <MudPaper Class="pa-6 text-center" Elevation="2">
+        <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Large" Color="Color.Error" />
+        <MudText Typo="Typo.h5" Class="mt-3">
+            Acceso denegado
+        </MudText>
+        <MudText Typo="Typo.body1" Class="mt-2">
+            No tiene permisos para acceder a esta opción.
+        </MudText>
+        <MudButton Class="mt-4"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Href="/">
+            Volver al inicio
+        </MudButton>
+    </MudPaper>
+</MudContainer>

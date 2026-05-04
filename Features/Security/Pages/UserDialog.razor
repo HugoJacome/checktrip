@@ -1,0 +1,103 @@
+﻿@using CheckTrip.Web.Features.Security.Models
+@using CheckTrip.Web.Features.Security.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject SecurityAdminService Service
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField Label="Usuario"
+                          @bind-Value="_model.Username"
+                          Required="true" />
+
+            <MudTextField Label="Nombre completo"
+                          @bind-Value="_model.FullName"
+                          Required="true" />
+
+            <MudTextField Label="@PasswordLabel"
+                          @bind-Value="_model.Password"
+                          InputType="InputType.Password" />
+
+            <MudCheckBox T="bool"
+                         Label="Activo"
+                         @bind-Checked="_model.IsActive" />
+
+            <MudSelect T="Guid"
+                       Label="Roles"
+                       MultiSelection="true"
+                       SelectedValues="_selectedRoleIds"
+                       SelectedValuesChanged="OnRolesChanged">
+                @foreach (var role in _roles)
+                {
+                    <MudSelectItem T="Guid" Value="@role.Id">@role.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton Variant="Variant.Text" OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public Guid? Id { get; set; }
+
+    private UserEditModel _model = new();
+    private List<RoleListItem> _roles = [];
+
+    private IReadOnlyCollection<Guid> _selectedRoleIds = [];
+
+    private string PasswordLabel => Id is null
+        ? "Contraseña"
+        : "Nueva contraseña (opcional)";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _roles = await Service.GetRolesAsync();
+
+        if (Id is not null)
+        {
+            var user = await Service.GetUserAsync(Id.Value);
+            if (user is not null)
+                _model = user;
+        }
+
+        _selectedRoleIds = _model.RoleIds.ToList();
+    }
+
+    private void OnRolesChanged(IReadOnlyCollection<Guid> values)
+    {
+        _selectedRoleIds = values;
+        _model.RoleIds = values.ToList();
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            await Service.SaveUserAsync(_model);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
