@@ -25,10 +25,14 @@ builder.Services.AddRazorComponents()
 //    options.UseSqlServer(
 //        builder.Configuration.GetConnectionString("DefaultConnection")
 //    ));
+
+var connectionString =
+    Environment.GetEnvironmentVariable("DefaultConnectionPSQL")
+    ?? builder.Configuration.GetConnectionString("DefaultConnectionPSQL");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnectionPSQL")
-    ));
+    options.UseNpgsql(connectionString));
+
 
 builder.Services.AddScoped<AgencyRepository>();
 builder.Services.AddScoped<AgencyService>(); 
