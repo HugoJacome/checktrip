@@ -36,3 +36,33 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+.ct-appbar {
+    backdrop-filter: blur(10px);
+}
+
+.ct-drawer {
+    border-right: 0 !important;
+}
+
+.ct-main-content {
+    min-height: 100vh;
+}
+
+.mud-paper {
+    border-radius: 16px !important;
+}
+
+.mud-button {
+    border-radius: 10px !important;
+    text-transform: none !important;
+}
+
+.mud-table {
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.fw-bold {
+    font-weight: 700;
+}

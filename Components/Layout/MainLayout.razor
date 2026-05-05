@@ -1,12 +1,13 @@
 ﻿@inherits LayoutComponentBase
 
+@using MudBlazor
 @using CheckTrip.Web.Features.Security.Services
 @using CheckTrip.Web.Features.Security.Models
 
 @inject AuthService AuthService
 @inject NavigationManager Navigation
 
-<MudThemeProvider />
+<MudThemeProvider Theme="_theme" IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
@@ -26,33 +27,55 @@ else if (_user is null)
 else
 {
     <MudLayout>
-        <MudAppBar Elevation="1">
+        <MudAppBar Elevation="0" Class="ct-appbar">
             <MudIconButton Icon="@Icons.Material.Filled.Menu"
                            Color="Color.Inherit"
                            Edge="Edge.Start"
                            OnClick="@ToggleDrawer" />
 
-            <MudText Typo="Typo.h6">CheckTrip</MudText>
+            <MudText Typo="Typo.h6" Class="fw-bold">
+                CheckTrip
+            </MudText>
 
             <MudSpacer />
 
-            <MudText Typo="Typo.body2" Class="me-4">
+            <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit"
+                           OnClick="ToggleTheme" />
+
+            <MudText Typo="Typo.body2" Class="mx-4">
                 @_user.FullName
             </MudText>
 
-            <MudButton Color="Color.Inherit" OnClick="Logout">
+            <MudButton Color="Color.Inherit"
+                       Variant="Variant.Text"
+                       StartIcon="@Icons.Material.Filled.Logout"
+                       OnClick="Logout">
                 Salir
             </MudButton>
         </MudAppBar>
 
         <MudDrawer @bind-Open="_drawerOpen"
                    Variant="DrawerVariant.Responsive"
-                   Elevation="2">
+                   Elevation="0"
+                   Class="ct-drawer">
+            <MudStack Class="pa-4" Spacing="1">
+                <MudText Typo="Typo.h6" Class="fw-bold">
+                    CheckTrip
+                </MudText>
+
+                <MudText Typo="Typo.caption">
+                    Sistema de gestión
+                </MudText>
+            </MudStack>
+
+            <MudDivider />
+
             <NavMenu />
         </MudDrawer>
 
-        <MudMainContent>
-            <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+        <MudMainContent Class="ct-main-content">
+            <MudContainer MaxWidth="MaxWidth.False" Class="pa-5">
                 @Body
             </MudContainer>
         </MudMainContent>
@@ -62,6 +85,7 @@ else
 @code {
     private bool _loaded;
     private bool _drawerOpen = true;
+    private bool _isDarkMode;
     private CurrentUserModel? _user;
 
     private bool IsLoginPage =>
@@ -89,9 +113,87 @@ else
         _drawerOpen = !_drawerOpen;
     }
 
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+
     private async Task Logout()
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("/login", forceLoad: true);
     }
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#5a70aa",
+            Secondary = "#3b3b3b",
+
+            AppbarBackground = "#5a70aa",
+            AppbarText = "#ffffff",
+
+            DrawerBackground = "#3b3b3b",
+            DrawerText = "#ffffff",
+            DrawerIcon = "#ffffff",
+
+            Background = "#f5f6fa",
+            Surface = "#ffffff",
+
+            TextPrimary = "#3b3b3b",
+            TextSecondary = "#6c757d",
+
+            ActionDefault = "#5a70aa",
+            Divider = "#e0e0e0"
+        },
+
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#7f95d1",
+            Secondary = "#d6d6d6",
+
+            AppbarBackground = "#1f2533",
+            AppbarText = "#ffffff",
+
+            DrawerBackground = "#171b24",
+            DrawerText = "#ffffff",
+            DrawerIcon = "#ffffff",
+
+            Background = "#11151c",
+            Surface = "#1b202b",
+
+            TextPrimary = "#ffffff",
+            TextSecondary = "#c7c7c7",
+
+            ActionDefault = "#7f95d1",
+            Divider = "#2e3442"
+        },
+
+        Typography = new Typography
+        {
+            Default = new DefaultTypography
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" }
+            },
+            H5 = new H5Typography
+            {
+                FontWeight = "600"
+            },
+            H6 = new H6Typography
+            {
+                FontWeight = "600"
+            },
+            Button = new ButtonTypography
+            {
+                FontWeight = "600",
+                TextTransform = "none"
+            }
+        },
+
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "14px"
+        }
+    };
 }
