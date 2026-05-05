@@ -6,8 +6,10 @@ public class BoatRouteScheduleRepository : BaseRepository<BoatRouteSchedule>
 {
     private readonly ITenantProvider _tenant;
 
-    public BoatRouteScheduleRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public BoatRouteScheduleRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -15,8 +17,9 @@ public class BoatRouteScheduleRepository : BaseRepository<BoatRouteSchedule>
     public async Task<List<BoatRouteSchedule>> GetAllAsync()
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.BoatRouteSchedules
+        return await db.BoatRouteSchedules
             .Include(x => x.Boat)
             .Include(x => x.Route)
             .Include(x => x.Schedule)
@@ -27,16 +30,18 @@ public class BoatRouteScheduleRepository : BaseRepository<BoatRouteSchedule>
     public async Task<BoatRouteSchedule?> GetAsync(Guid id)
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.BoatRouteSchedules
+        return await db.BoatRouteSchedules
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
     }
 
     public async Task<bool> ExistsAsync(Guid boatId, Guid routeId, Guid scheduleId)
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.BoatRouteSchedules.AnyAsync(x =>
+        return await db.BoatRouteSchedules.AnyAsync(x =>
             x.TenantId == tenantId &&
             x.BoatId == boatId &&
             x.RouteId == routeId &&

@@ -30,9 +30,8 @@ var connectionString =
     Environment.GetEnvironmentVariable("DefaultConnectionPSQL")
     ?? builder.Configuration.GetConnectionString("DefaultConnectionPSQL");
 
-builder.Services.AddDbContext<AppDbContext>(options =>
+builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
-
 
 builder.Services.AddScoped<AgencyRepository>();
 builder.Services.AddScoped<AgencyService>(); 
@@ -76,6 +75,12 @@ builder.Services.AddMudServices(config =>
     config.SnackbarConfiguration.ShowCloseIcon = true;
     config.SnackbarConfiguration.PreventDuplicates = true;
 });
+
+builder.Services.AddServerSideBlazor()
+    .AddCircuitOptions(options =>
+    {
+        options.DetailedErrors = true;
+    });
 
 var app = builder.Build();
 

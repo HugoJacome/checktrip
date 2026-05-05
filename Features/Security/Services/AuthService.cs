@@ -10,15 +10,15 @@ public class AuthService
 {
     private const string SessionKey = "checktrip_user";
 
-    private readonly AppDbContext _db;
+    private readonly IDbContextFactory<AppDbContext> _dbFactory;
     private readonly ProtectedSessionStorage _sessionStorage;
     private readonly PasswordHasher<object> _passwordHasher = new();
 
     public AuthService(
-        AppDbContext db,
+        IDbContextFactory<AppDbContext> dbFactory,
         ProtectedSessionStorage sessionStorage)
     {
-        _db = db;
+        _dbFactory = dbFactory;
         _sessionStorage = sessionStorage;
     }
 
@@ -28,11 +28,12 @@ public class AuthService
             string.IsNullOrWhiteSpace(model.Password))
             return null;
 
-        var hash = _passwordHasher.HashPassword(new object(), model.Password);
-
         var username = model.Username.Trim().ToLowerInvariant();
 
-        var user = await _db.Users
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var user = await db.Users
+            .AsNoTracking()
             .FirstOrDefaultAsync(x =>
                 x.Username == username &&
                 x.IsActive);
@@ -48,12 +49,13 @@ public class AuthService
         if (result == PasswordVerificationResult.Failed)
             return null;
 
-        var roles = await _db.UserRoles
+        var roles = await db.UserRoles
+            .AsNoTracking()
             .Where(x =>
                 x.TenantId == user.TenantId &&
                 x.UserId == user.Id)
             .Join(
-                _db.Roles,
+                db.Roles.AsNoTracking(),
                 ur => ur.RoleId,
                 r => r.Id,
                 (ur, r) => r.Name

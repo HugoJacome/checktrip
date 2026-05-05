@@ -7,35 +7,128 @@
 @inject IDialogService Dialog
 
 <RequirePermission ResourceCode="catalog.routes">
-    <MudText Typo="Typo.h5">Rutas</MudText>
-    <MudText Typo="Typo.h5">Rutas</MudText>
 
-    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="New">
-        Nueva Ruta
-    </MudButton>
+    <MudStack Spacing="3" Style="height: calc(100vh - 96px);">
 
-    <MudTable T="RouteListItem" Items="_items" Dense="true" Hover="true">
-        <HeaderContent>
-            <MudTh>Origen</MudTh>
-            <MudTh>Destino</MudTh>
-            <MudTh>Descripción</MudTh>
-            <MudTh></MudTh>
-        </HeaderContent>
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween">
 
-        <RowTemplate>
-            <MudTd>@context.Origin</MudTd>
-            <MudTd>@context.Destination</MudTd>
-            <MudTd>@context.Description</MudTd>
-            <MudTd>
-                <MudButton Size="Size.Small" OnClick="@(() => Edit(context.Id))">Editar</MudButton>
-                <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Id))">Eliminar</MudButton>
-            </MudTd>
-        </RowTemplate>
-    </MudTable>
+            <MudText Typo="Typo.h5">Rutas</MudText>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="New">
+                Nueva Ruta
+            </MudButton>
+
+        </MudStack>
+
+        <MudPaper Class="pa-4 d-flex flex-column"
+                  Elevation="1"
+                  Style="flex: 1; min-height: 0;">
+
+            <MudStack Row="true"
+                      AlignItems="AlignItems.Center"
+                      Justify="Justify.SpaceBetween"
+                      Class="mb-4">
+
+                <MudText Typo="Typo.subtitle1">Listado de rutas</MudText>
+
+                <MudTextField T="string"
+                              Value="_search"
+                              ValueChanged="OnSearchChanged"
+                              Placeholder="Buscar..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Immediate="true"
+                              Clearable="true"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Style="max-width: 320px;" />
+
+            </MudStack>
+
+            <MudTable T="RouteListItem"
+                      Items="_items"
+                      Dense="true"
+                      Hover="true"
+                      Bordered="true"
+                      Striped="true"
+                      Loading="_loading"
+                      Filter="FilterFunc"
+                      SortLabel="Ordenar por"
+                      FixedHeader="true"
+                      Height="calc(100vh - 260px)"
+                      RowsPerPage="10">
+
+                <HeaderContent>
+                    <MudTh>
+                        <MudTableSortLabel T="RouteListItem" SortBy="x => x.Origin">
+                            Origen
+                        </MudTableSortLabel>
+                    </MudTh>
+
+                    <MudTh>
+                        <MudTableSortLabel T="RouteListItem" SortBy="x => x.Destination">
+                            Destino
+                        </MudTableSortLabel>
+                    </MudTh>
+
+                    <MudTh>
+                        <MudTableSortLabel T="RouteListItem" SortBy="x => x.Description">
+                            Descripción
+                        </MudTableSortLabel>
+                    </MudTh>
+
+                    <MudTh Style="width: 180px; text-align: right;">
+                        Acciones
+                    </MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd DataLabel="Origen">@context.Origin</MudTd>
+                    <MudTd DataLabel="Destino">@context.Destination</MudTd>
+                    <MudTd DataLabel="Descripción">@context.Description</MudTd>
+
+                    <MudTd DataLabel="Acciones" Class="text-end">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       Color="Color.Primary"
+                                       OnClick="@(() => Edit(context.Id))" />
+
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                       Size="Size.Small"
+                                       Color="Color.Error"
+                                       OnClick="@(() => Delete(context.Id))" />
+                    </MudTd>
+                </RowTemplate>
+
+                <NoRecordsContent>
+                    <MudText Class="pa-4">No existen rutas registradas.</MudText>
+                </NoRecordsContent>
+
+                <LoadingContent>
+                    <MudText Class="pa-4">Cargando rutas...</MudText>
+                </LoadingContent>
+
+                <PagerContent>
+                    <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+                </PagerContent>
+
+            </MudTable>
+
+        </MudPaper>
+
+    </MudStack>
+
 </RequirePermission>
 
 @code {
     private List<RouteListItem> _items = new();
+    private bool _loading = true;
+    private string _search = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -44,20 +137,60 @@
 
     private async Task Load()
     {
-        _items = await Service.GetAllAsync();
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(RouteListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Origin) ||
+               Contains(item.Destination) ||
+               Contains(item.Description);
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task New()
     {
-        await Dialog.ShowAsync<RouteDialog>("Nueva Ruta");
-        await Load();
+        var dialog = await Dialog.ShowAsync<RouteDialog>("Nueva Ruta");
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Edit(Guid id)
     {
-        var parameters = new DialogParameters { ["Id"] = id };
-        await Dialog.ShowAsync<RouteDialog>("Editar Ruta", parameters);
-        await Load();
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var dialog = await Dialog.ShowAsync<RouteDialog>("Editar Ruta", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Delete(Guid id)

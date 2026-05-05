@@ -1,4 +1,5 @@
 ﻿@page "/sellers"
+
 @using CheckAccess.Features.Catalogs.Sellers.Dialog
 @using CheckTrip.Web.Infrastructure.Notifications
 @using MudBlazor
@@ -7,42 +8,124 @@
 @inject IDialogService Dialog
 @inject INotificationService Notify
 
-<MudText Typo="Typo.h5" Class="mb-4">Vendedores</MudText>
+<MudStack Spacing="3" Style="height: calc(100vh - 96px);">
 
-<MudStack Row="true" Class="mb-4">
-    <MudButton OnClick="New" Variant="Variant.Filled" Color="Color.Primary">
-        Nuevo
-    </MudButton>
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween">
+
+        <MudText Typo="Typo.h5">Vendedores</MudText>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="New">
+            Nuevo vendedor
+        </MudButton>
+
+    </MudStack>
+
+    <MudPaper Class="pa-4 d-flex flex-column"
+              Elevation="1"
+              Style="flex: 1; min-height: 0;">
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
+
+            <MudText Typo="Typo.subtitle1">Listado de vendedores</MudText>
+
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="max-width: 320px;" />
+
+        </MudStack>
+
+        <MudTable T="SellerListItem"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Striped="true"
+                  Loading="_loading"
+                  Filter="FilterFunc"
+                  SortLabel="Ordenar por"
+                  FixedHeader="true"
+                  Height="calc(100vh - 260px)"
+                  RowsPerPage="10">
+
+            <HeaderContent>
+                <MudTh>
+                    <MudTableSortLabel T="SellerListItem" SortBy="x => x.Name">
+                        Nombre
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="SellerListItem" SortBy="x => x.IsActive">
+                        Estado
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh Style="width:160px; text-align:right;">
+                    Acciones
+                </MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="Nombre">@context.Name</MudTd>
+
+                <MudTd DataLabel="Estado">
+                    <MudChip T="string"
+                             Size="Size.Small"
+                             Color="@(context.IsActive ? Color.Success : Color.Error)">
+                        @(context.IsActive ? "Activo" : "Inactivo")
+                    </MudChip>
+                </MudTd>
+
+                <MudTd DataLabel="Acciones" Class="text-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Edit(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Delete(context.Id))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No existen vendedores registrados.</MudText>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <MudText Class="pa-4">Cargando vendedores...</MudText>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+            </PagerContent>
+
+        </MudTable>
+
+    </MudPaper>
+
 </MudStack>
 
-<MudTable Items="_items" Hover="true" Dense="true">
-    <HeaderContent>
-        <MudTh>Nombre</MudTh>
-        <MudTh>Estado</MudTh>
-        <MudTh></MudTh>
-    </HeaderContent>
-
-    <RowTemplate>
-        <MudTd DataLabel="Nombre">@context.Name</MudTd>
-
-        <MudTd DataLabel="Estado">
-            <MudChip T="string" Color="@(context.IsActive? Color.Success: Color.Error)">
-                @(context.IsActive ? "Activo" : "Inactivo")
-            </MudChip>
-        </MudTd>
-
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                           OnClick="@(() => Edit(context.Id))" />
-
-            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                           Color="Color.Error"
-                           OnClick="@(() => Delete(context.Id))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
-
 @code {
+    private bool _loading = true;
+    private string _search = string.Empty;
     private List<SellerListItem> _items = new();
 
     protected override async Task OnInitializedAsync()
@@ -52,12 +135,55 @@
 
     private async Task Load()
     {
-        _items = await Service.GetAllAsync();
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Notify.Error($"Error al cargar vendedores: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(SellerListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Name) ||
+               Contains(item.IsActive ? "Activo" : "Inactivo");
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task New()
     {
-        var dialog = await Dialog.ShowAsync<SellerDialog>("Nuevo Vendedor");
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<SellerDialog>(
+            "Nuevo vendedor",
+            options);
+
         var result = await dialog.Result;
 
         if (!result.Canceled)
@@ -68,10 +194,21 @@
     {
         var parameters = new DialogParameters
         {
-            { "Id", id }
+            ["Id"] = id
         };
 
-        var dialog = await Dialog.ShowAsync<SellerDialog>("Editar Vendedor", parameters);
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<SellerDialog>(
+            "Editar vendedor",
+            parameters,
+            options);
+
         var result = await dialog.Result;
 
         if (!result.Canceled)
@@ -83,12 +220,12 @@
         try
         {
             await Service.DeleteAsync(id);
-            Notify.Success("Vendedor eliminado");
+            Notify.Success("Vendedor eliminado correctamente.");
             await Load();
         }
         catch (Exception ex)
         {
-            Notify.Error(ex.Message);
+            Notify.Error($"Error al eliminar vendedor: {ex.Message}");
         }
     }
 }

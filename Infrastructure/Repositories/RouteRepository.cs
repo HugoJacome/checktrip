@@ -1,14 +1,17 @@
 ﻿using CheckTrip.Web.Data;
 using CheckTrip.Web.Data.Entities;
-using CheckTrip.Web.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
+
+namespace CheckTrip.Web.Infrastructure.Repositories;
 
 public class RouteRepository : BaseRepository<Route>
 {
     private readonly ITenantProvider _tenant;
 
-    public RouteRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public RouteRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -17,8 +20,12 @@ public class RouteRepository : BaseRepository<Route>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Routes
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Routes
             .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.Origin)
+            .ThenBy(x => x.Destination)
             .ToListAsync();
     }
 
@@ -26,7 +33,9 @@ public class RouteRepository : BaseRepository<Route>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Routes
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Routes
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
     }
 }

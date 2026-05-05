@@ -1,38 +1,136 @@
 ﻿@page "/boats"
+
 @using CheckAccess.Features.Catalogs.Boat.Dialog
 @using MudBlazor
+
 @inject BoatService Service
 @inject IDialogService Dialog
 
-<MudText Typo="Typo.h5">Botes</MudText>
+<MudStack Spacing="3" Style="height: calc(100vh - 96px);">
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="New">
-    Nuevo Bote
-</MudButton>
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween">
 
-<MudTable T="BoatListItem" Items="_items" Dense="true" Hover="true">
-    <HeaderContent>
-        <MudTh>Nombre</MudTh>
-        <MudTh>Capacidad</MudTh>
-        <MudTh>Extra</MudTh>
-        <MudTh>Agencia</MudTh>
-        <MudTh></MudTh>
-    </HeaderContent>
+        <MudText Typo="Typo.h5">Botes</MudText>
 
-    <RowTemplate>
-        <MudTd>@context.Name</MudTd>
-        <MudTd>@context.Capacity</MudTd>
-        <MudTd>@context.ExtraCapacity</MudTd>
-        <MudTd>@context.AgencyName</MudTd>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="New">
+            Nuevo bote
+        </MudButton>
 
-        <MudTd>
-            <MudButton Size="Size.Small" OnClick="@(() => Edit(context.Id))">Editar</MudButton>
-            <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => Delete(context.Id))">Eliminar</MudButton>
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+    </MudStack>
+
+    <MudPaper Class="pa-4 d-flex flex-column"
+              Elevation="1"
+              Style="flex: 1; min-height: 0;">
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
+
+            <MudText Typo="Typo.subtitle1">Listado de botes</MudText>
+
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="max-width: 320px;" />
+
+        </MudStack>
+
+        <MudTable T="BoatListItem"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Striped="true"
+                  Loading="_loading"
+                  Filter="FilterFunc"
+                  SortLabel="Ordenar por"
+                  FixedHeader="true"
+                  Height="calc(100vh - 260px)"
+                  RowsPerPage="10">
+
+            <HeaderContent>
+                <MudTh>
+                    <MudTableSortLabel T="BoatListItem" SortBy="x => x.Name">
+                        Nombre
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatListItem" SortBy="x => x.Capacity">
+                        Capacidad
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatListItem" SortBy="x => x.ExtraCapacity">
+                        Extra
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatListItem" SortBy="x => x.AgencyName">
+                        Agencia
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh Style="width:160px; text-align:right;">
+                    Acciones
+                </MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="Nombre">@context.Name</MudTd>
+                <MudTd DataLabel="Capacidad">@context.Capacity</MudTd>
+                <MudTd DataLabel="Extra">@context.ExtraCapacity</MudTd>
+                <MudTd DataLabel="Agencia">@context.AgencyName</MudTd>
+
+                <MudTd DataLabel="Acciones" Class="text-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Edit(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Delete(context.Id))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No existen botes registrados.</MudText>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <MudText Class="pa-4">Cargando botes...</MudText>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+            </PagerContent>
+
+        </MudTable>
+
+    </MudPaper>
+
+</MudStack>
 
 @code {
+    private bool _loading = true;
+    private string _search = string.Empty;
     private List<BoatListItem> _items = new();
 
     protected override async Task OnInitializedAsync()
@@ -42,20 +140,82 @@
 
     private async Task Load()
     {
-        _items = await Service.GetAllAsync();
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(BoatListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Name) ||
+               Contains(item.AgencyName) ||
+               item.Capacity.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase) ||
+               item.ExtraCapacity.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task New()
     {
-        await Dialog.ShowAsync<BoatsDialog>("Nuevo Bote");
-        await Load();
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<BoatsDialog>(
+            "Nuevo bote",
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Edit(Guid id)
     {
-        var parameters = new DialogParameters { ["Id"] = id };
-        await Dialog.ShowAsync<BoatsDialog>("Editar Bote", parameters);
-        await Load();
+        var parameters = new DialogParameters
+        {
+            ["Id"] = id
+        };
+
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<BoatsDialog>(
+            "Editar bote",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Delete(Guid id)

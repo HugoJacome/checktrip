@@ -9,8 +9,10 @@ public class ScheduleRepository : BaseRepository<Schedule>
 {
     private readonly ITenantProvider _tenant;
 
-    public ScheduleRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public ScheduleRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -19,7 +21,10 @@ public class ScheduleRepository : BaseRepository<Schedule>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Schedules
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Schedules
+            .AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive)
             .OrderBy(x => x.DepartureTime)
             .ToListAsync();
@@ -29,7 +34,9 @@ public class ScheduleRepository : BaseRepository<Schedule>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Schedules
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Schedules
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
     }
 }

@@ -3,13 +3,17 @@
 @using CheckAccess.Features.Catalogs.Agencies.Dialog
 @using CheckTrip.Web.Infrastructure.Notifications
 @using MudBlazor
+
 @inject AgencyService Service
 @inject IDialogService Dialog
 @inject INotificationService Notifications
 
-<MudStack Spacing="3">
+<MudStack Spacing="3" Style="height: calc(100vh - 96px);">
 
-    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween">
+
         <MudText Typo="Typo.h5">Agencias</MudText>
 
         <MudButton Variant="Variant.Filled"
@@ -18,56 +22,103 @@
                    OnClick="CreateAsync">
             Nueva agencia
         </MudButton>
+
     </MudStack>
 
-    <MudPaper Class="pa-4" Elevation="1">
-        @if (_loading)
-        {
-            <MudProgressLinear Indeterminate="true" />
-        }
-        else
-        {
-            <MudTable Items="_items"
-                      Dense="true"
-                      Hover="true"
-                      Bordered="true"
-                      Striped="true">
+    <MudPaper Class="pa-4 d-flex flex-column"
+              Elevation="1"
+              Style="flex: 1; min-height: 0;">
 
-                <HeaderContent>
-                    <MudTh>Nombre</MudTh>
-                    <MudTh>RUC</MudTh>
-                    <MudTh Style="width:160px;">Acciones</MudTh>
-                </HeaderContent>
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
 
-                <RowTemplate>
-                    <MudTd DataLabel="Nombre">@context.Name</MudTd>
-                    <MudTd DataLabel="RUC">@context.Ruc</MudTd>
+            <MudText Typo="Typo.subtitle1">Listado de agencias</MudText>
 
-                    <MudTd>
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
-                                       Color="Color.Primary"
-                                       Size="Size.Small"
-                                       OnClick="@(() => EditAsync(context.Id))" />
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="max-width: 320px;" />
 
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                       Color="Color.Error"
-                                       Size="Size.Small"
-                                       OnClick="@(() => DeleteAsync(context.Id))" />
-                    </MudTd>
-                </RowTemplate>
+        </MudStack>
 
-                <NoRecordsContent>
-                    <MudText Typo="Typo.body2">No existen agencias registradas.</MudText>
-                </NoRecordsContent>
+        <MudTable T="AgencyListItem"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Striped="true"
+                  Loading="_loading"
+                  Filter="FilterFunc"
+                  SortLabel="Ordenar por"
+                  FixedHeader="true"
+                  Height="calc(100vh - 260px)"
+                  RowsPerPage="10">
 
-            </MudTable>
-        }
+            <HeaderContent>
+                <MudTh>
+                    <MudTableSortLabel T="AgencyListItem" SortBy="x => x.Name">
+                        Nombre
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="AgencyListItem" SortBy="x => x.Ruc">
+                        RUC
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh Style="width:160px; text-align:right;">
+                    Acciones
+                </MudTh>
+            </HeaderContent>
+
+            <RowTemplate>
+                <MudTd DataLabel="Nombre">@context.Name</MudTd>
+                <MudTd DataLabel="RUC">@context.Ruc</MudTd>
+
+                <MudTd DataLabel="Acciones" Class="text-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => EditAsync(context.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => DeleteAsync(context.Id))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No existen agencias registradas.</MudText>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <MudText Class="pa-4">Cargando agencias...</MudText>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+            </PagerContent>
+
+        </MudTable>
+
     </MudPaper>
 
 </MudStack>
 
 @code {
     private bool _loading = true;
+    private string _search = string.Empty;
     private List<AgencyListItem> _items = new();
 
     protected override async Task OnInitializedAsync()
@@ -91,6 +142,26 @@
         {
             _loading = false;
         }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(AgencyListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Name) ||
+               Contains(item.Ruc);
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task CreateAsync()
@@ -145,15 +216,6 @@
 
     private async Task DeleteAsync(Guid id)
     {
-        // var confirm = await Dialog.ShowMessageBox(
-        //     title: "Confirmar eliminación",
-        //     markupMessage: (MarkupString)"¿Está seguro de eliminar esta agencia?",
-        //     yesText: "Eliminar",
-        //     cancelText: "Cancelar");
-
-        // if (confirm != true)
-        //     return;
-
         try
         {
             await Service.DeleteAsync(id);

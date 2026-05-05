@@ -6,8 +6,10 @@ public class AgencyRepository : BaseRepository<Agency>
 {
     private readonly ITenantProvider _tenant;
 
-    public AgencyRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public AgencyRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -15,8 +17,9 @@ public class AgencyRepository : BaseRepository<Agency>
     public async Task<List<Agency>> GetAllAsync()
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.Agencies
+        return await db.Agencies
             .AsNoTracking()
             .Where(x => x.TenantId == tenantId && x.IsActive)
             .OrderBy(x => x.Name)
@@ -26,16 +29,18 @@ public class AgencyRepository : BaseRepository<Agency>
     public async Task<Agency?> GetAsync(Guid id)
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.Agencies
+        return await db.Agencies
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
     }
 
     public async Task<bool> ExistsByNameAsync(string name, Guid? excludeId = null)
     {
         var tenantId = _tenant.GetTenantId();
+        await using var db = await _dbFactory.CreateDbContextAsync();
 
-        return await _db.Agencies.AnyAsync(x =>
+        return await db.Agencies.AnyAsync(x =>
             x.TenantId == tenantId &&
             x.IsActive &&
             x.Name == name &&

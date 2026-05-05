@@ -5,23 +5,55 @@
 
 <MudDialog>
     <DialogContent>
-        <MudForm @ref="_form">
-            <MudTextField Label="Nombre"
-                          @bind-Value="_model.Name"
-                          Required="true" />
 
-            <MudTextField Label="RUC"
-                          @bind-Value="_model.Ruc" />
+        <MudStack Spacing="3">
 
-            <MudCheckBox T="bool"
-                         Label="Activo"
-                         @bind-Value="_model.IsActive" />
-        </MudForm>
+            <MudText Typo="Typo.subtitle1">
+                Datos de la agencia
+            </MudText>
+
+            <MudForm @ref="_form">
+
+                <MudStack Spacing="3">
+
+                    <MudTextField T="string"
+                                  Label="Nombre"
+                                  @bind-Value="_model.Name"
+                                  Required="true"
+                                  RequiredError="El nombre es obligatorio."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+
+                    <MudTextField T="string"
+                                  Label="RUC"
+                                  @bind-Value="_model.Ruc"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+
+                    <MudCheckBox T="bool"
+                                 Label="Activo"
+                                 @bind-Value="_model.IsActive"
+                                 Color="Color.Primary" />
+
+                </MudStack>
+
+            </MudForm>
+
+        </MudStack>
+
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Cancel">Cancelar</MudButton>
-        <MudButton Color="Color.Primary" OnClick="Save">Guardar</MudButton>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="Save">
+            @(_saving ? "Guardando..." : "Guardar")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -32,8 +64,13 @@
     [Parameter]
     public Guid? Id { get; set; }
 
-    private AgencyEditModel _model = new();
+    private AgencyEditModel _model = new()
+    {
+        IsActive = true
+    };
+
     private MudForm? _form;
+    private bool _saving;
 
     protected override async Task OnInitializedAsync()
     {
@@ -48,21 +85,30 @@
 
     private async Task Save()
     {
-        await _form!.Validate();
+        if (_form is null)
+            return;
+
+        await _form.Validate();
 
         if (!_form.IsValid)
             return;
+
+        _saving = true;
 
         try
         {
             await Service.SaveAsync(_model);
 
-            Snackbar.Add("Agencia guardada correctamente", Severity.Success);
+            Snackbar.Add("Agencia guardada correctamente.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 

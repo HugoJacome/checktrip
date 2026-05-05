@@ -5,38 +5,48 @@ namespace CheckTrip.Web.Infrastructure.Repositories;
 
 public class BaseRepository<T> where T : class
 {
-    protected readonly AppDbContext _db;
+    protected readonly IDbContextFactory<AppDbContext> _dbFactory;
 
-    public BaseRepository(AppDbContext db)
+    public BaseRepository(IDbContextFactory<AppDbContext> dbFactory)
     {
-        _db = db;
+        _dbFactory = dbFactory;
     }
 
     public async Task<List<T>> GetAllAsync()
     {
-        return await _db.Set<T>().ToListAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Set<T>().ToListAsync();
     }
 
     public async Task<T?> GetByIdAsync(Guid id)
     {
-        return await _db.Set<T>().FindAsync(id);
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Set<T>().FindAsync(id);
     }
 
     public async Task AddAsync(T entity)
     {
-        _db.Set<T>().Add(entity);
-        await _db.SaveChangesAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        db.Set<T>().Add(entity);
+        await db.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(T entity)
     {
-        _db.Set<T>().Update(entity);
-        await _db.SaveChangesAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        db.Set<T>().Update(entity);
+        await db.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(T entity)
     {
-        _db.Set<T>().Remove(entity);
-        await _db.SaveChangesAsync();
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        db.Set<T>().Remove(entity);
+        await db.SaveChangesAsync();
     }
 }

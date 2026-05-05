@@ -9,8 +9,10 @@ public class TicketRepository : BaseRepository<Ticket>
 {
     private readonly ITenantProvider _tenant;
 
-    public TicketRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public TicketRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -19,7 +21,10 @@ public class TicketRepository : BaseRepository<Ticket>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Tickets
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets
+            .AsNoTracking()
             .Include(x => x.ReservationItem)
                 .ThenInclude(x => x.Customer)
             .Where(x =>
@@ -33,7 +38,9 @@ public class TicketRepository : BaseRepository<Ticket>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Tickets
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets
             .Include(x => x.ReservationItem)
                 .ThenInclude(x => x.Customer)
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
@@ -43,7 +50,9 @@ public class TicketRepository : BaseRepository<Ticket>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Tickets.AnyAsync(x =>
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets.AnyAsync(x =>
             x.TenantId == tenantId &&
             x.ReservationItemId == reservationItemId);
     }
@@ -53,7 +62,9 @@ public class TicketRepository : BaseRepository<Ticket>
         var tenantId = _tenant.GetTenantId();
         var today = DateTime.UtcNow.Date;
 
-        return await _db.Tickets.CountAsync(x =>
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets.CountAsync(x =>
             x.TenantId == tenantId &&
             x.CreatedAt.Date == today);
     }

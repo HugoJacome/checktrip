@@ -1,54 +1,136 @@
 ﻿@using MudBlazor
+
 @inject BoatService Service
 @inject AgencyService AgencyService
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
 
-        <MudTextField Label="Nombre" @bind-Value="_model.Name" />
-        <MudNumericField Label="Capacidad" @bind-Value="_model.Capacity" />
-        <MudNumericField Label="Capacidad Extra" @bind-Value="_model.ExtraCapacity" />
+        <MudStack Spacing="3">
 
-        <MudSelect T="Guid?" Label="Agencia" @bind-Value="_model.AgencyId">
-            @foreach (var a in _agencies)
-            {
-                <MudSelectItem Value="@a.Id">@a.Name</MudSelectItem>
-            }
-        </MudSelect>
+            <MudText Typo="Typo.subtitle1">
+                Datos del bote
+            </MudText>
+
+            <MudForm @ref="_form">
+
+                <MudStack Spacing="3">
+
+                    <MudTextField T="string"
+                                  Label="Nombre"
+                                  @bind-Value="_model.Name"
+                                  Required="true"
+                                  RequiredError="El nombre es obligatorio."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+
+                    <MudNumericField T="int"
+                                     Label="Capacidad"
+                                     @bind-Value="_model.Capacity"
+                                     Required="true"
+                                     Min="0"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" />
+
+                    <MudNumericField T="int"
+                                     Label="Capacidad Extra"
+                                     @bind-Value="_model.ExtraCapacity"
+                                     Min="0"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense" />
+
+                    <MudSelect T="Guid?"
+                               Label="Agencia"
+                               @bind-Value="_model.AgencyId"
+                               Required="true"
+                               RequiredError="Debe seleccionar una agencia."
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+
+                        @foreach (var a in _agencies)
+                        {
+                            <MudSelectItem T="Guid?" Value="@a.Id">
+                                @a.Name
+                            </MudSelectItem>
+                        }
+
+                    </MudSelect>
+
+                </MudStack>
+
+            </MudForm>
+
+        </MudStack>
 
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Save" Color="Color.Primary">Guardar</MudButton>
-        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="Save">
+            @(_saving ? "Guardando..." : "Guardar")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    [Parameter] public Guid? Id { get; set; }
+    [Parameter]
+    public Guid? Id { get; set; }
 
     [CascadingParameter]
-    IMudDialogInstance MudDialog { get; set; } = default!;
+    private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private BoatEditModel _model = new();
     private List<AgencyListItem> _agencies = new();
+    private MudForm? _form;
+    private bool _saving;
 
     protected override async Task OnInitializedAsync()
     {
         _agencies = await AgencyService.GetAllAsync();
 
-        if (Id != null)
+        if (Id.HasValue)
         {
             var data = await Service.GetAsync(Id.Value);
-            if (data != null)
+
+            if (data is not null)
                 _model = data;
         }
     }
 
     private async Task Save()
     {
-        await Service.SaveAsync(_model);
-        MudDialog.Close(DialogResult.Ok(true));
+        if (_form is null)
+            return;
+
+        await _form.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        _saving = true;
+
+        try
+        {
+            await Service.SaveAsync(_model);
+
+            Snackbar.Add("Bote guardado correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Cancel()

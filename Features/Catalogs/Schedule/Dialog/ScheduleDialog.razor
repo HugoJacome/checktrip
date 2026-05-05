@@ -6,47 +6,77 @@
 
 <MudDialog>
     <DialogContent>
-        <MudStack Spacing="3">
-            <MudTextField T="string"
-                          Label="Nombre"
-                          @bind-Value="_model.Name"
-                          Required="true" />
 
-            <MudTimePicker Label="Hora de salida"
-                           AmPm="false"
-                           Time="@_model.DepartureTime"
-                           TimeChanged="OnTimeChanged" />
+        <MudStack Spacing="3">
+
+            <MudText Typo="Typo.subtitle1">
+                Datos del horario
+            </MudText>
+
+            <MudForm @ref="_form">
+
+                <MudStack Spacing="3">
+
+                    <MudTextField T="string"
+                                  Label="Nombre"
+                                  @bind-Value="_model.Name"
+                                  Required="true"
+                                  RequiredError="El nombre es obligatorio."
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+
+                    <MudTimePicker Label="Hora de salida"
+                                   AmPm="false"
+                                   Time="@_model.DepartureTime"
+                                   TimeChanged="OnTimeChanged"
+                                   Required="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense" />
+
+                </MudStack>
+
+            </MudForm>
+
         </MudStack>
+
     </DialogContent>
 
     <DialogActions>
-        <MudButton Variant="Variant.Text" OnClick="Cancel">
+        <MudButton Variant="Variant.Text"
+                   OnClick="Cancel">
             Cancelar
         </MudButton>
 
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
+                   Disabled="_saving"
                    OnClick="Save">
-            Guardar
+            @(_saving ? "Guardando..." : "Guardar")
         </MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
-    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public Guid? Id { get; set; }
+    [Parameter]
+    public Guid? Id { get; set; }
 
     private ScheduleEditModel _model = new()
     {
         DepartureTime = new TimeSpan(8, 0, 0)
     };
 
+    private MudForm? _form;
+    private bool _saving;
+
     protected override async Task OnInitializedAsync()
     {
-        if (Id is not null)
+        if (Id.HasValue)
         {
             var data = await Service.GetAsync(Id.Value);
+
             if (data is not null)
                 _model = data;
         }
@@ -60,15 +90,30 @@
 
     private async Task Save()
     {
+        if (_form is null)
+            return;
+
+        await _form.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        _saving = true;
+
         try
         {
             await Service.SaveAsync(_model);
+
             Snackbar.Add("Horario guardado correctamente.", Severity.Success);
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
         }
     }
 

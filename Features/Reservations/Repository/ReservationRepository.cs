@@ -9,8 +9,10 @@ public class ReservationRepository : BaseRepository<Reservation>
 {
     private readonly ITenantProvider _tenant;
 
-    public ReservationRepository(AppDbContext db, ITenantProvider tenant)
-        : base(db)
+    public ReservationRepository(
+        IDbContextFactory<AppDbContext> dbFactory,
+        ITenantProvider tenant)
+        : base(dbFactory)
     {
         _tenant = tenant;
     }
@@ -19,7 +21,10 @@ public class ReservationRepository : BaseRepository<Reservation>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Reservations
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Reservations
+            .AsNoTracking()
             .Include(x => x.Agency)
             .Include(x => x.Seller)
             .Include(x => x.Items)
@@ -32,7 +37,9 @@ public class ReservationRepository : BaseRepository<Reservation>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Reservations
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Reservations
             .Include(x => x.Items)
                 .ThenInclude(x => x.Customer)
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
@@ -43,16 +50,18 @@ public class ReservationRepository : BaseRepository<Reservation>
         var tenantId = _tenant.GetTenantId();
         var travelDate = DateOnly.FromDateTime(date);
 
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
         if (outbound)
         {
-            return await _db.ReservationItems.CountAsync(x =>
+            return await db.ReservationItems.CountAsync(x =>
                 x.TenantId == tenantId &&
                 x.OutboundRouteScheduleId == routeScheduleId &&
                 x.OutboundTravelDate == travelDate &&
                 x.Status != "Cancelled");
         }
 
-        return await _db.ReservationItems.CountAsync(x =>
+        return await db.ReservationItems.CountAsync(x =>
             x.TenantId == tenantId &&
             x.ReturnRouteScheduleId == routeScheduleId &&
             x.ReturnTravelDate == travelDate &&
@@ -63,7 +72,10 @@ public class ReservationRepository : BaseRepository<Reservation>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.BoatRouteSchedules
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatRouteSchedules
+            .AsNoTracking()
             .Include(x => x.Boat)
             .Include(x => x.Route)
             .Include(x => x.Schedule)
@@ -77,9 +89,12 @@ public class ReservationRepository : BaseRepository<Reservation>
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Customers.FirstOrDefaultAsync(x =>
-            x.TenantId == tenantId &&
-            x.DocumentNumber == documentNumber);
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Customers
+            .FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId &&
+                x.DocumentNumber == documentNumber);
     }
 
     public async Task<int> CountReservationsTodayAsync()
@@ -87,15 +102,22 @@ public class ReservationRepository : BaseRepository<Reservation>
         var tenantId = _tenant.GetTenantId();
         var today = DateTime.UtcNow.Date;
 
-        return await _db.Reservations.CountAsync(x =>
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Reservations.CountAsync(x =>
             x.TenantId == tenantId &&
-            x.CreatedAt.Date == today);
+            x.CreatedAt >= today &&
+            x.CreatedAt < today.AddDays(1));
     }
+
     public async Task<Reservation?> GetDetailAsync(Guid id)
     {
         var tenantId = _tenant.GetTenantId();
 
-        return await _db.Reservations
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Reservations
+            .AsNoTracking()
             .Include(x => x.Agency)
             .Include(x => x.Seller)
             .Include(x => x.Items)

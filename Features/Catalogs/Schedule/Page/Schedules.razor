@@ -7,50 +7,117 @@
 @inject ScheduleService Service
 @inject IDialogService Dialog
 
-<MudStack Spacing="3">
-    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+<MudStack Spacing="3" Style="height: calc(100vh - 96px);">
+
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween">
+
         <MudText Typo="Typo.h5">Horarios</MudText>
 
         <MudButton Variant="Variant.Filled"
                    Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
                    OnClick="New">
-            Nuevo Horario
+            Nuevo horario
         </MudButton>
+
     </MudStack>
 
-    <MudTable T="ScheduleListItem" Items="_items" Dense="true" Hover="true" Bordered="true">
-        <HeaderContent>
-            <MudTh>Nombre</MudTh>
-            <MudTh>Hora salida</MudTh>
-            <MudTh Style="width:160px;">Acciones</MudTh>
-        </HeaderContent>
+    <MudPaper Class="pa-4 d-flex flex-column"
+              Elevation="1"
+              Style="flex: 1; min-height: 0;">
 
-        <RowTemplate Context="item">
-            <MudTd>@item.Name</MudTd>
-            <MudTd>@item.DisplayTime</MudTd>
-            <MudTd>
-                <MudButton Size="Size.Small"
-                           Variant="Variant.Text"
-                           OnClick="@(() => Edit(item.Id))">
-                    Editar
-                </MudButton>
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
 
-                <MudButton Size="Size.Small"
-                           Color="Color.Error"
-                           Variant="Variant.Text"
-                           OnClick="@(() => Delete(item.Id))">
-                    Eliminar
-                </MudButton>
-            </MudTd>
-        </RowTemplate>
+            <MudText Typo="Typo.subtitle1">Listado de horarios</MudText>
 
-        <NoRecordsContent>
-            <MudText>No existen horarios registrados.</MudText>
-        </NoRecordsContent>
-    </MudTable>
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="max-width: 320px;" />
+
+        </MudStack>
+
+        <MudTable T="ScheduleListItem"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Striped="true"
+                  Loading="_loading"
+                  Filter="FilterFunc"
+                  SortLabel="Ordenar por"
+                  FixedHeader="true"
+                  Height="calc(100vh - 260px)"
+                  RowsPerPage="10">
+
+            <HeaderContent>
+                <MudTh>
+                    <MudTableSortLabel T="ScheduleListItem" SortBy="x => x.Name">
+                        Nombre
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="ScheduleListItem" SortBy="x => x.DisplayTime">
+                        Hora salida
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh Style="width:160px; text-align:right;">
+                    Acciones
+                </MudTh>
+            </HeaderContent>
+
+            <RowTemplate Context="item">
+                <MudTd DataLabel="Nombre">@item.Name</MudTd>
+                <MudTd DataLabel="Hora salida">@item.DisplayTime</MudTd>
+
+                <MudTd DataLabel="Acciones" Class="text-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Edit(item.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Delete(item.Id))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">No existen horarios registrados.</MudText>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <MudText Class="pa-4">Cargando horarios...</MudText>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+            </PagerContent>
+
+        </MudTable>
+
+    </MudPaper>
+
 </MudStack>
 
 @code {
+    private bool _loading = true;
+    private string _search = string.Empty;
     private List<ScheduleListItem> _items = new();
 
     protected override async Task OnInitializedAsync()
@@ -60,14 +127,55 @@
 
     private async Task Load()
     {
-        _items = await Service.GetAllAsync();
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(ScheduleListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Name) ||
+               Contains(item.DisplayTime);
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task New()
     {
-        var dialog = await Dialog.ShowAsync<ScheduleDialog>("Nuevo Horario");
-        await dialog.Result;
-        await Load();
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<ScheduleDialog>(
+            "Nuevo horario",
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Edit(Guid id)
@@ -77,9 +185,22 @@
             ["Id"] = id
         };
 
-        var dialog = await Dialog.ShowAsync<ScheduleDialog>("Editar Horario", parameters);
-        await dialog.Result;
-        await Load();
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<ScheduleDialog>(
+            "Editar horario",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await Load();
     }
 
     private async Task Delete(Guid id)
