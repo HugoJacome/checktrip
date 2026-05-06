@@ -136,4 +136,46 @@ public class ReservationRepository : BaseRepository<Reservation>
                     .ThenInclude(x => x!.Schedule)
             .FirstOrDefaultAsync(x => x.Id == id && x.TenantId == tenantId);
     }
+    public async Task<List<Customer>> SearchCustomersAsync(string text)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        text = text.Trim().ToLower();
+
+        return await db.Customers
+            .AsNoTracking()
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.IsActive &&
+                (
+                    x.DocumentNumber.ToLower().Contains(text) ||
+                    x.FullName.ToLower().Contains(text)
+                ))
+            .OrderBy(x => x.FullName)
+            .Take(10)
+            .ToListAsync();
+    }
+
+    public async Task<List<BoatRouteSchedule>> GetRouteSchedulesByBoatAsync(Guid? boatId)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        var query = db.BoatRouteSchedules
+            .AsNoTracking()
+            .Include(x => x.Boat)
+            .Include(x => x.Route)
+            .Include(x => x.Schedule)
+            .Where(x => x.TenantId == tenantId && x.IsActive);
+
+        if (boatId.HasValue)
+            query = query.Where(x => x.BoatId == boatId.Value);
+
+        return await query
+            .OrderBy(x => x.Schedule.Name)
+            .ToListAsync();
+    }
 }

@@ -1,5 +1,6 @@
 ﻿@page "/login"
 
+@using Microsoft.AspNetCore.Components.Web
 @using CheckTrip.Web.Features.Security.Models
 @using CheckTrip.Web.Features.Security.Services
 @using MudBlazor
@@ -8,46 +9,117 @@
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="d-flex align-center justify-center" Style="height:100vh;">
-    <MudPaper Class="pa-6" Elevation="4" Style="width:100%;">
-        <MudStack Spacing="3">
-            <MudText Typo="Typo.h5">CheckTrip</MudText>
-            <MudText Typo="Typo.body2">Ingrese sus credenciales</MudText>
+<div class="ct-login-page">
+    <div class="ct-login-left">
+        <div class="ct-login-card">
+            <div class="ct-logo">
+                <span>CHECK</span><strong>TRIP</strong>
+            </div>
 
-            <MudTextField T="string"
-                          Label="Usuario"
-                          @bind-Value="_model.Username"
-                          Immediate="true" />
+            <div class="ct-title">HOLA.!</div>
+            <div class="ct-subtitle">BIENVENIDO A NUESTRO SISTEMA</div>
 
-            <MudTextField T="string"
-                          Label="Contraseña"
-                          @bind-Value="_model.Password"
-                          InputType="InputType.Password"
-                          Immediate="true" />
+            <MudForm @ref="_form">
+                <MudStack Spacing="2" Class="mt-5">
+                    <MudText Typo="Typo.caption">
+                        Ingrese sus credenciales de acceso:
+                    </MudText>
 
-            <MudButton Variant="Variant.Filled"
-                       Color="Color.Primary"
-                       OnClick="DoLogin"
-                       FullWidth="true">
-                Ingresar
-            </MudButton>
-        </MudStack>
-    </MudPaper>
-</MudContainer>
+                    <MudTextField T="string"
+                                  Label="Usuario:"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  @bind-Value="_model.Username"
+                                  Required="true"
+                                  RequiredError="Ingrese el usuario"
+                                  Immediate="true"
+                                  Disabled="_loading" />
+
+                    <MudTextField T="string"
+                                  Label="Contraseña:"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  @bind-Value="_model.Password"
+                                  InputType="InputType.Password"
+                                  Required="true"
+                                  RequiredError="Ingrese la contraseña"
+                                  Immediate="true"
+                                  Disabled="_loading"
+                                  OnKeyDown="HandleKeyDown" />
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               OnClick="DoLogin"
+                               FullWidth="true"
+                               Class="ct-login-button"
+                               Disabled="_loading">
+                        @if (_loading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="me-2" />
+                            <span>VALIDANDO...</span>
+                        }
+                        else
+                        {
+                            <span>INGRESAR</span>
+                        }
+                    </MudButton>
+                </MudStack>
+            </MudForm>
+        </div>
+
+        <div class="ct-footer">
+            Todos los derechos reservados / VASCONEZCORP 2026
+        </div>
+    </div>
+
+    <div class="ct-login-right"></div>
+</div>
 
 @code {
+    private MudForm? _form;
     private LoginModel _model = new();
+    private bool _loading;
 
     private async Task DoLogin()
     {
-        var user = await AuthService.LoginAsync(_model);
+        if (_loading)
+            return;
 
-        if (user is null)
+        await _form!.ValidateAsync();
+
+        if (!_form.IsValid)
         {
-            Snackbar.Add("Usuario o contraseña incorrectos.", Severity.Error);
+            Snackbar.Add("Complete los campos requeridos.", Severity.Warning);
             return;
         }
 
-        Navigation.NavigateTo("/", forceLoad: true);
+        try
+        {
+            _loading = true;
+
+            var user = await AuthService.LoginAsync(_model);
+
+            if (user is null)
+            {
+                Snackbar.Add("Usuario o contraseña incorrectos.", Severity.Error);
+                return;
+            }
+
+            Navigation.NavigateTo("/", forceLoad: true);
+        }
+        catch
+        {
+            Snackbar.Add("No se pudo conectar con la base de datos. Intente nuevamente.", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await DoLogin();
     }
 }

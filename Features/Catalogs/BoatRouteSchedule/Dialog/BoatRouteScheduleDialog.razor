@@ -5,42 +5,127 @@
 @inject BoatService BoatService
 @inject RouteService RouteService
 @inject ScheduleService ScheduleService
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
 
-        <MudSelect T="Guid" Label="Bote" @bind-Value="_model.BoatId">
-            @foreach (var b in _boats)
-            {
-                <MudSelectItem Value="@b.Id">@b.Name</MudSelectItem>
-            }
-        </MudSelect>
+        <MudStack Spacing="3">
 
-        <MudSelect T="Guid" Label="Ruta" @bind-Value="_model.RouteId">
-            @foreach (var r in _routes)
-            {
-                <MudSelectItem Value="@r.Id">@($"{r.Origin} - {r.Destination}")</MudSelectItem>
-            }
-        </MudSelect>
+            <MudText Typo="Typo.subtitle1">
+                Datos de la configuración
+            </MudText>
 
-        <MudSelect T="Guid" Label="Horario" @bind-Value="_model.ScheduleId">
-            @foreach (var s in _schedules)
-            {
-                <MudSelectItem Value="@s.Id">@s.Name</MudSelectItem>
-            }
-        </MudSelect>
+            <MudForm @ref="_form">
 
-        <MudNumericField T="decimal" Label="Precio" @bind-Value="_model.Price" />
+                <MudGrid Spacing="3">
 
-        <MudTextField T="string" Label="Días (ej: L-M-M-J-V)" @bind-Value="_model.Days" />
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid"
+                                   Label="Bote"
+                                   @bind-Value="_model.BoatId"
+                                   Required="true"
+                                   RequiredError="Debe seleccionar un bote."
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
 
-        <MudTextField T="string" Label="Color" @bind-Value="_model.Color" />
+                            @foreach (var b in _boats)
+                            {
+                                <MudSelectItem T="Guid" Value="@b.Id">
+                                    @b.Name
+                                </MudSelectItem>
+                            }
+
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid"
+                                   Label="Ruta"
+                                   @bind-Value="_model.RouteId"
+                                   Required="true"
+                                   RequiredError="Debe seleccionar una ruta."
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+
+                            @foreach (var r in _routes)
+                            {
+                                <MudSelectItem T="Guid" Value="@r.Id">
+                                    @($"{r.Origin} - {r.Destination}")
+                                </MudSelectItem>
+                            }
+
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid"
+                                   Label="Horario"
+                                   @bind-Value="_model.ScheduleId"
+                                   Required="true"
+                                   RequiredError="Debe seleccionar un horario."
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+
+                            @foreach (var s in _schedules)
+                            {
+                                <MudSelectItem T="Guid" Value="@s.Id">
+                                    @($"{s.Name} - {s.DisplayTime}")
+                                </MudSelectItem>
+                            }
+
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudNumericField T="decimal"
+                                         Label="Precio"
+                                         @bind-Value="_model.Price"
+                                         Required="true"
+                                         Min="0"
+                                         Variant="Variant.Outlined"
+                                         Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Días"
+                                      Placeholder="Ej: L-M-M-J-V"
+                                      @bind-Value="_model.Days"
+                                      Required="true"
+                                      RequiredError="Debe ingresar los días."
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Color"
+                                      Placeholder="#1976D2"
+                                      @bind-Value="_model.Color"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                </MudGrid>
+
+            </MudForm>
+
+        </MudStack>
 
     </DialogContent>
 
     <DialogActions>
-        <MudButton OnClick="Save" Color="Color.Primary">Guardar</MudButton>
-        <MudButton OnClick="Cancel">Cancelar</MudButton>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="Save">
+            @(_saving ? "Guardando..." : "Guardar")
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -48,7 +133,8 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    [Parameter] public Guid? Id { get; set; }
+    [Parameter]
+    public Guid? Id { get; set; }
 
     private BoatRouteScheduleEditModel _model = new();
 
@@ -56,24 +142,51 @@
     private List<RouteListItem> _routes = new();
     private List<ScheduleListItem> _schedules = new();
 
+    private MudForm? _form;
+    private bool _saving;
+
     protected override async Task OnInitializedAsync()
     {
         _boats = await BoatService.GetAllAsync();
         _routes = await RouteService.GetAllAsync();
         _schedules = await ScheduleService.GetAllAsync();
 
-        if (Id != null)
+        if (Id.HasValue)
         {
             var data = await Service.GetAsync(Id.Value);
-            if (data != null)
+
+            if (data is not null)
                 _model = data;
         }
     }
 
     private async Task Save()
     {
-        await Service.SaveAsync(_model);
-        MudDialog.Close(DialogResult.Ok(true));
+        if (_form is null)
+            return;
+
+        await _form.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        _saving = true;
+
+        try
+        {
+            await Service.SaveAsync(_model);
+
+            Snackbar.Add("Configuración guardada correctamente.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
     }
 
     private void Cancel()

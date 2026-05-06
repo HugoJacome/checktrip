@@ -27,11 +27,17 @@ builder.Services.AddRazorComponents()
 //    ));
 
 var connectionString =
-    Environment.GetEnvironmentVariable("DefaultConnectionPSQL")
+    Environment.GetEnvironmentVariable("DATABASE_URL")
     ?? builder.Configuration.GetConnectionString("DefaultConnectionPSQL");
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(connectionString, npgsqlOptions =>
+    {
+        npgsqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorCodesToAdd: null);
+    }));
 
 builder.Services.AddScoped<AgencyRepository>();
 builder.Services.AddScoped<AgencyService>(); 

@@ -1,6 +1,6 @@
 ﻿namespace CheckTrip.Web.Features.Reservations.Models;
 
-public class ReservationPassengerModel
+public class CustomerUpsertModel
 {
     public string DocumentType { get; set; } = "Cedula";
     public string DocumentNumber { get; set; } = default!;
@@ -8,10 +8,4 @@ public class ReservationPassengerModel
     public string? Nationality { get; set; }
     public DateTime? BirthDate { get; set; }
     public int? Age { get; set; }
-
-    public bool Outbound { get; set; } = true;
-    public bool Return { get; set; } = true;
-
-    public string PassengerType { get; set; } = "Adult";
-    // Adult, Infant, Courtesy
 }

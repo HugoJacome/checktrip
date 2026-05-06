@@ -6,37 +6,164 @@
 @inject BoatRouteScheduleService Service
 @inject IDialogService Dialog
 
-<MudText Typo="Typo.h5">Configuración de Viajes</MudText>
+<MudStack Spacing="3" Style="height: calc(100vh - 96px); min-height:0;">
 
-<MudButton OnClick="New" Variant="Variant.Filled" Color="Color.Primary">
-    Nuevo
-</MudButton>
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween">
 
-<MudTable T="BoatRouteScheduleListItem" Items="_items">
-    <HeaderContent>
-        <MudTh>Bote</MudTh>
-        <MudTh>Ruta</MudTh>
-        <MudTh>Horario</MudTh>
-        <MudTh>Precio</MudTh>
-        <MudTh>Días</MudTh>
-        <MudTh></MudTh>
-    </HeaderContent>
+        <MudText Typo="Typo.h5">Configuración de viajes</MudText>
 
-    <RowTemplate Context="item">
-        <MudTd>@item.Boat</MudTd>
-        <MudTd>@item.Route</MudTd>
-        <MudTd>@item.Schedule</MudTd>
-        <MudTd>@item.Price</MudTd>
-        <MudTd>@item.Days</MudTd>
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="New">
+            Nueva configuración
+        </MudButton>
 
-        <MudTd>
-            <MudButton OnClick="@(() => Edit(item.Id))">Editar</MudButton>
-            <MudButton Color="Color.Error" OnClick="@(() => Delete(item.Id))">Eliminar</MudButton>
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+    </MudStack>
+
+    <MudPaper Class="pa-4 d-flex flex-column"
+              Elevation="1"
+              Style="flex: 1; min-height: 0; overflow: hidden;">
+
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-4">
+
+            <MudText Typo="Typo.subtitle1">
+                Listado de viajes configurados
+            </MudText>
+
+            <MudTextField T="string"
+                          Value="_search"
+                          ValueChanged="OnSearchChanged"
+                          Placeholder="Buscar..."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          Clearable="true"
+                          Variant="Variant.Outlined"
+                          Margin="Margin.Dense"
+                          Style="max-width: 320px;" />
+
+        </MudStack>
+
+        <MudTable T="BoatRouteScheduleListItem"
+                  Items="_items"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Striped="true"
+                  Loading="_loading"
+                  Filter="FilterFunc"
+                  SortLabel="Ordenar por"
+                  FixedHeader="true"
+                  Height="calc(100vh - 330px)"
+                  RowsPerPage="10"
+                  Class="ct-table-with-pager">
+
+            <HeaderContent>
+                <MudTh>
+                    <MudTableSortLabel T="BoatRouteScheduleListItem" SortBy="x => x.Boat">
+                        Bote
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatRouteScheduleListItem" SortBy="x => x.Route">
+                        Ruta
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatRouteScheduleListItem" SortBy="x => x.Schedule">
+                        Horario
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatRouteScheduleListItem" SortBy="x => x.Price">
+                        Precio
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh>
+                    <MudTableSortLabel T="BoatRouteScheduleListItem" SortBy="x => x.Days">
+                        Días
+                    </MudTableSortLabel>
+                </MudTh>
+
+                <MudTh Style="width:160px; text-align:right;">
+                    Acciones
+                </MudTh>
+            </HeaderContent>
+
+            <RowTemplate Context="item">
+                <MudTd DataLabel="Bote">@item.Boat</MudTd>
+                <MudTd DataLabel="Ruta">@item.Route</MudTd>
+                <MudTd DataLabel="Horario">@item.Schedule</MudTd>
+                <MudTd DataLabel="Precio">@item.Price.ToString("C2")</MudTd>
+                <MudTd DataLabel="Días">@item.Days</MudTd>
+
+                <MudTd DataLabel="Acciones" Class="text-end">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                   Color="Color.Primary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Edit(item.Id))" />
+
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Size="Size.Small"
+                                   OnClick="@(() => Delete(item.Id))" />
+                </MudTd>
+            </RowTemplate>
+
+            <NoRecordsContent>
+                <MudText Class="pa-4">
+                    No existen configuraciones de viaje registradas.
+                </MudText>
+            </NoRecordsContent>
+
+            <LoadingContent>
+                <MudText Class="pa-4">
+                    Cargando configuraciones...
+                </MudText>
+            </LoadingContent>
+
+            <PagerContent>
+                <MudTablePager PageSizeOptions="new int[] { 10, 20, 50, 100 }" />
+            </PagerContent>
+
+        </MudTable>
+
+    </MudPaper>
+
+</MudStack>
+
+<style>
+    .ct-table-with-pager {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+        .ct-table-with-pager .mud-table-container {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .ct-table-with-pager .mud-table-pagination {
+            flex-shrink: 0;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+</style>
 
 @code {
+    private bool _loading = true;
+    private string _search = string.Empty;
     private List<BoatRouteScheduleListItem> _items = new();
 
     protected override async Task OnInitializedAsync()
@@ -46,12 +173,54 @@
 
     private async Task Load()
     {
-        _items = await Service.GetAllAsync();
+        _loading = true;
+
+        try
+        {
+            _items = await Service.GetAllAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task OnSearchChanged(string value)
+    {
+        _search = value ?? string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private bool FilterFunc(BoatRouteScheduleListItem item)
+    {
+        if (string.IsNullOrWhiteSpace(_search))
+            return true;
+
+        return Contains(item.Boat) ||
+               Contains(item.Route) ||
+               Contains(item.Schedule) ||
+               Contains(item.Days) ||
+               item.Price.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool Contains(string? value)
+    {
+        return value?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private async Task New()
     {
-        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>("Nuevo");
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>(
+            "Nueva configuración",
+            options);
+
         var result = await dialog.Result;
 
         if (!result.Canceled)
@@ -65,7 +234,18 @@
             ["Id"] = id
         };
 
-        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>("Editar", parameters);
+        var options = new DialogOptions
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await Dialog.ShowAsync<BoatRouteScheduleDialog>(
+            "Editar configuración",
+            parameters,
+            options);
+
         var result = await dialog.Result;
 
         if (!result.Canceled)

@@ -6,7 +6,7 @@
 @inject BoatService Service
 @inject IDialogService Dialog
 
-<MudStack Spacing="3" Style="height: calc(100vh - 96px);">
+<MudStack Spacing="3" Style="height: calc(100vh - 96px); min-height:0;">
 
     <MudStack Row="true"
               AlignItems="AlignItems.Center"
@@ -25,7 +25,7 @@
 
     <MudPaper Class="pa-4 d-flex flex-column"
               Elevation="1"
-              Style="flex: 1; min-height: 0;">
+              Style="flex: 1; min-height: 0; overflow: hidden;">
 
         <MudStack Row="true"
                   AlignItems="AlignItems.Center"
@@ -58,8 +58,9 @@
                   Filter="FilterFunc"
                   SortLabel="Ordenar por"
                   FixedHeader="true"
-                  Height="calc(100vh - 260px)"
-                  RowsPerPage="10">
+                  Height="calc(100vh - 330px)"
+                  RowsPerPage="10"
+                  Class="ct-table-with-pager">
 
             <HeaderContent>
                 <MudTh>
@@ -127,6 +128,25 @@
     </MudPaper>
 
 </MudStack>
+
+<style>
+    .ct-table-with-pager {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+
+        .ct-table-with-pager .mud-table-container {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .ct-table-with-pager .mud-table-pagination {
+            flex-shrink: 0;
+            border-top: 1px solid #e0e0e0;
+            background: white;
+        }
+</style>
 
 @code {
     private bool _loading = true;
