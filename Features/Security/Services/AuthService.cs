@@ -10,6 +10,9 @@ public class AuthService
 {
     private const string SessionKey = "checktrip_user";
 
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutTime = TimeSpan.FromMinutes(10);
+
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
     private readonly ProtectedSessionStorage _sessionStorage;
     private readonly PasswordHasher<object> _passwordHasher = new();
@@ -28,17 +31,19 @@ public class AuthService
             string.IsNullOrWhiteSpace(model.Password))
             return null;
 
-        var username = model.Username.Trim().ToLowerInvariant();
+        var username = NormalizeUsername(model.Username);
 
         await using var db = await _dbFactory.CreateDbContextAsync();
 
         var user = await db.Users
-            .AsNoTracking()
             .FirstOrDefaultAsync(x =>
-                x.Username == username &&
+                x.NormalizedUsername == username &&
                 x.IsActive);
 
         if (user is null)
+            return null;
+
+        if (IsLockedOut(user))
             return null;
 
         var result = _passwordHasher.VerifyHashedPassword(
@@ -47,7 +52,19 @@ public class AuthService
             model.Password);
 
         if (result == PasswordVerificationResult.Failed)
+        {
+            await RegisterFailedLoginAsync(db, user);
             return null;
+        }
+
+        user.AccessFailedCount = 0;
+        user.LockoutEndUtc = null;
+        user.LastLoginUtc = DateTime.UtcNow;
+
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+            user.PasswordHash = HashPassword(model.Password);
+
+        await db.SaveChangesAsync();
 
         var roles = await db.UserRoles
             .AsNoTracking()
@@ -60,6 +77,7 @@ public class AuthService
                 r => r.Id,
                 (ur, r) => r.Name
             )
+            .Distinct()
             .ToListAsync();
 
         var currentUser = new CurrentUserModel
@@ -68,7 +86,8 @@ public class AuthService
             TenantId = user.TenantId,
             Username = user.Username,
             FullName = user.FullName,
-            Roles = roles
+            Roles = roles,
+            LoginUtc = DateTime.UtcNow
         };
 
         await _sessionStorage.SetAsync(SessionKey, currentUser);
@@ -80,7 +99,10 @@ public class AuthService
     {
         var result = await _sessionStorage.GetAsync<CurrentUserModel>(SessionKey);
 
-        return result.Success ? result.Value : null;
+        if (!result.Success || result.Value is null)
+            return null;
+
+        return result.Value;
     }
 
     public async Task LogoutAsync()
@@ -91,5 +113,27 @@ public class AuthService
     public string HashPassword(string password)
     {
         return _passwordHasher.HashPassword(new object(), password);
+    }
+
+    public string NormalizeUsername(string username)
+    {
+        return username.Trim().ToLowerInvariant();
+    }
+
+    private static bool IsLockedOut(User user)
+    {
+        return user.LockoutEndUtc.HasValue &&
+               user.LockoutEndUtc.Value > DateTime.UtcNow;
+    }
+
+    private static async Task RegisterFailedLoginAsync(AppDbContext db, User user)
+    {
+        user.AccessFailedCount += 1;
+        user.LastFailedLoginUtc = DateTime.UtcNow;
+
+        if (user.AccessFailedCount >= MaxFailedAttempts)
+            user.LockoutEndUtc = DateTime.UtcNow.Add(LockoutTime);
+
+        await db.SaveChangesAsync();
     }
 }

@@ -33,7 +33,8 @@
                                   Required="true"
                                   RequiredError="Ingrese el usuario"
                                   Immediate="true"
-                                  Disabled="_loading" />
+                                  Disabled="_loading"
+                                  AutoComplete="username" />
 
                     <MudTextField T="string"
                                   Label="Contraseña:"
@@ -45,7 +46,8 @@
                                   RequiredError="Ingrese la contraseña"
                                   Immediate="true"
                                   Disabled="_loading"
-                                  OnKeyDown="HandleKeyDown" />
+                                  OnKeyDown="HandleKeyDown"
+                                  AutoComplete="current-password" />
 
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
@@ -82,14 +84,14 @@
 
     private async Task DoLogin()
     {
-        if (_loading)
+        if (_loading || _form is null)
             return;
 
-        await _form!.ValidateAsync();
+        await _form.ValidateAsync();
 
         if (!_form.IsValid)
         {
-            Snackbar.Add("Complete los campos requeridos.", Severity.Warning);
+            Snackbar.Add("Ingrese usuario y contraseña.", Severity.Warning);
             return;
         }
 
@@ -97,19 +99,22 @@
         {
             _loading = true;
 
+            _model.Username = _model.Username?.Trim() ?? string.Empty;
+
             var user = await AuthService.LoginAsync(_model);
 
             if (user is null)
             {
-                Snackbar.Add("Usuario o contraseña incorrectos.", Severity.Error);
+                Snackbar.Add("Credenciales inválidas o usuario bloqueado temporalmente.", Severity.Error);
                 return;
             }
 
+            Snackbar.Add("Bienvenido.", Severity.Success);
             Navigation.NavigateTo("/", forceLoad: true);
         }
         catch
         {
-            Snackbar.Add("No se pudo conectar con la base de datos. Intente nuevamente.", Severity.Error);
+            Snackbar.Add("No se pudo iniciar sesión. Intente nuevamente.", Severity.Error);
         }
         finally
         {

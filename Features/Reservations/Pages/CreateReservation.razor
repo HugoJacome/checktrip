@@ -4,7 +4,10 @@
 @using CheckTrip.Web.Features.Reservations.Models
 @using CheckTrip.Web.Features.Reservations.Services
 @using CheckTrip.Web.Infrastructure.Notifications
+@using Microsoft.AspNetCore.Components.Forms
 @using MudBlazor
+@using ClosedXML.Excel
+@using System.Globalization
 
 @inject ReservationService Service
 @inject BoatService BoatService
@@ -14,11 +17,134 @@
 @inject INotificationService Notifications
 @inject NavigationManager Navigation
 
+<style>
+    .ct-availability-panel {
+        border-radius: 18px;
+    }
+
+    .ct-availability-header {
+        gap: 16px;
+        flex-wrap: wrap;
+    }
+
+    .ct-availability-title {
+        color: #355080;
+        font-weight: 500;
+    }
+
+    .ct-availability-subtitle {
+        color: #6b7280;
+    }
+
+    .ct-days-wrapper {
+        display: flex;
+        gap: 14px;
+        justify-content: space-between;
+        align-items: stretch;
+        width: 100%;
+        margin-top: 18px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .ct-day-card {
+        flex: 1 1 0;
+        min-width: 170px;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .ct-day-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-bottom: 8px;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #eef0f4;
+    }
+
+    .ct-day-name {
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .ct-day-date {
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .ct-empty-day {
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed #d1d5db;
+        border-radius: 12px;
+        color: #9ca3af;
+        font-size: 13px;
+    }
+
+    .ct-slot-button {
+        min-height: 64px;
+        border-radius: 14px;
+        padding: 10px 12px;
+        justify-content: flex-start;
+        text-align: left;
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        margin-bottom: 8px;
+    }
+
+        .ct-slot-button:hover {
+            background: #eef6ff;
+            border-color: #7aa7e8;
+        }
+
+    .ct-slot-selected {
+        background: #dceeff !important;
+        border: 2px solid #5578c2 !important;
+    }
+
+    .ct-slot-full {
+        opacity: .55;
+        background: #f3f4f6 !important;
+    }
+
+    .ct-slot-content {
+        width: 100%;
+    }
+
+    .ct-slot-time {
+        font-weight: 800;
+        font-size: 15px;
+        color: #111827;
+    }
+
+    .ct-slot-capacity {
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+        margin-top: 4px;
+    }
+
+    @@media (max-width: 900px) {
+        .ct-days-wrapper {
+            justify-content: flex-start;
+        }
+
+        .ct-day-card {
+            flex: 0 0 220px;
+        }
+    }
+</style>
+
 <MudStack Spacing="3">
 
-    <MudText Typo="Typo.h5">Nueva Reserva</MudText>
+    <MudText Typo="Typo.h5">Nueva reserva</MudText>
     <MudText Typo="Typo.body2">
-        Seleccione el viaje, cargue los pasajeros y confirme la reserva.
+        Seleccione la lancha, la ruta disponible, cargue los pasajeros y confirme la reserva.
     </MudText>
 
     <MudPaper Class="pa-4">
@@ -53,7 +179,11 @@
             </MudItem>
 
             <MudItem xs="12" md="3">
-                <MudSelect T="Guid?" Label="Lancha" Value="_boatId" ValueChanged="OnBoatChanged" Clearable="true">
+                <MudSelect T="Guid?"
+                           Label="Lancha"
+                           Value="_boatId"
+                           ValueChanged="OnBoatChanged"
+                           Clearable="true">
                     @foreach (var b in _boats)
                     {
                         <MudSelectItem T="Guid?" Value="@b.Id">@b.Name</MudSelectItem>
@@ -62,7 +192,19 @@
             </MudItem>
 
             <MudItem xs="12" md="3">
-                <MudDatePicker Label="Semana" Date="_weekStart" DateChanged="OnWeekChanged" />
+                <MudSelect T="Guid?"
+                           Label="Ruta"
+                           Value="_routeId"
+                           ValueChanged="OnRouteChanged"
+                           Clearable="true"
+                           Disabled="@(!_boatId.HasValue)">
+                    @foreach (var r in _routes)
+                    {
+                        <MudSelectItem T="Guid?" Value="@r.Id">
+                            @($"{r.Origin} - {r.Destination}")
+                        </MudSelectItem>
+                    }
+                </MudSelect>
             </MudItem>
 
             <MudItem xs="12" md="2">
@@ -79,36 +221,94 @@
         </MudGrid>
     </MudPaper>
 
-    <MudPaper Class="pa-4">
-        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-            <MudText Typo="Typo.h6">Disponibilidad semanal</MudText>
+    <MudPaper Class="pa-4 ct-availability-panel">
+        <MudStack Row="true"
+                  Justify="Justify.SpaceBetween"
+                  AlignItems="AlignItems.Center"
+                  Class="ct-availability-header">
 
-            <MudStack Row="true">
-                <MudButton Variant="Variant.Outlined" OnClick="PreviousWeek">Semana anterior</MudButton>
-                <MudButton Variant="Variant.Outlined" OnClick="NextWeek">Semana siguiente</MudButton>
+            <MudStack Spacing="1">
+                <MudText Typo="Typo.h6">
+                    Disponibilidad semanal
+                    @if (!string.IsNullOrWhiteSpace(AvailabilityTitle))
+                    {
+                        <span class="ct-availability-title">· @AvailabilityTitle</span>
+                    }
+                </MudText>
+
+                <MudText Typo="Typo.caption" Class="ct-availability-subtitle">
+                    Seleccione el día y horario disponible para la ida.
+                </MudText>
+            </MudStack>
+
+            <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!_boatId.HasValue || !_routeId.HasValue)"
+                           OnClick="PreviousWeek">
+                    Semana anterior
+                </MudButton>
+
+                <MudButton Variant="Variant.Outlined"
+                           Disabled="@(!_boatId.HasValue || !_routeId.HasValue)"
+                           OnClick="NextWeek">
+                    Semana siguiente
+                </MudButton>
             </MudStack>
         </MudStack>
 
-        <MudGrid Class="mt-3">
-            @foreach (var day in WeekDays)
-            {
-                <MudItem xs="12" md="@(12 / 7)">
-                    <MudPaper Class="pa-2 ct-day-card">
-                        <MudText Typo="Typo.subtitle2">@day.ToString("ddd dd/MM")</MudText>
+        @if (!_boatId.HasValue)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-3">
+                Seleccione una lancha para cargar las rutas disponibles.
+            </MudAlert>
+        }
+        else if (!_routeId.HasValue)
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-3">
+                Seleccione una ruta para cargar la disponibilidad semanal.
+            </MudAlert>
+        }
+        else
+        {
+            <div class="ct-days-wrapper">
+                @foreach (var day in WeekDays)
+                {
+                    var dayItems = GetDayItems(day).ToList();
 
-                        @foreach (var item in _weekly.Where(x => x.TravelDate.Date == day.Date))
+                    <MudPaper Class="ct-day-card" Elevation="0">
+                        <div class="ct-day-header">
+                            <span class="ct-day-name">@GetDayName(day)</span>
+                            <span class="ct-day-date">@day.ToString("dd/MM")</span>
+                        </div>
+
+                        @if (!dayItems.Any())
                         {
-                            <MudPaper Class="@GetAvailabilityClass(item)"
-                                      @onclick="@(() => SelectTrip(item))">
-                                <MudText Typo="Typo.body2">@item.Schedule</MudText>
-                                <MudText Typo="Typo.caption">@item.Route</MudText>
-                                <MudText Typo="Typo.caption">@item.Available cupos</MudText>
-                            </MudPaper>
+                            <div class="ct-empty-day">
+                                Sin horarios
+                            </div>
+                        }
+                        else
+                        {
+                            @foreach (var item in dayItems)
+                            {
+                                <MudButton FullWidth="true"
+                                           Variant="Variant.Text"
+                                           Disabled="@item.IsFull"
+                                           Class="@GetAvailabilityClass(item)"
+                                           OnClick="@(() => SelectTrip(item))">
+                                    <div class="ct-slot-content">
+                                        <div class="ct-slot-time">@item.Schedule</div>
+                                        <div class="ct-slot-capacity">
+                                            @item.Available cupos disponibles
+                                        </div>
+                                    </div>
+                                </MudButton>
+                            }
                         }
                     </MudPaper>
-                </MudItem>
-            }
-        </MudGrid>
+                }
+            </div>
+        }
     </MudPaper>
 
     <MudPaper Class="pa-4">
@@ -135,14 +335,22 @@
         <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
             <MudText Typo="Typo.h6">Listado de pasajeros</MudText>
 
-            <MudStack Row="true">
+            <MudStack Row="true" Spacing="2">
                 <MudButton Variant="Variant.Outlined" OnClick="AddPassengerDialog">
-                    Buscar / Registrar
+                    Buscar / registrar
                 </MudButton>
 
-                <MudButton Variant="Variant.Outlined" Color="Color.Info">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Info"
+                           HtmlTag="label"
+                           for="passenger-excel">
                     Cargar Excel
                 </MudButton>
+
+                <InputFile id="passenger-excel"
+                           OnChange="LoadPassengersFromExcel"
+                           accept=".xlsx"
+                           style="display:none" />
             </MudStack>
         </MudStack>
 
@@ -150,10 +358,10 @@
             <HeaderContent>
                 <MudTh>N°</MudTh>
                 <MudTh>Identificación</MudTh>
-                <MudTh>Nombre y apellido</MudTh>
+                <MudTh>Nombres completos</MudTh>
                 <MudTh>Nacionalidad</MudTh>
                 <MudTh>Fecha nacimiento</MudTh>
-                <MudTh>Tipo</MudTh>
+                <MudTh>Tipo pasajero</MudTh>
                 <MudTh>Ida</MudTh>
                 <MudTh>Regreso</MudTh>
                 <MudTh></MudTh>
@@ -171,11 +379,18 @@
                 </MudTd>
 
                 <MudTd>
-                    <MudTextField T="string" @bind-Value="context.Nationality" Dense="true" />
+                    <MudSelect T="string" @bind-Value="context.Nationality" Dense="true">
+                        @foreach (var nationality in _nationalities)
+                        {
+                            <MudSelectItem Value="@nationality">@nationality</MudSelectItem>
+                        }
+                    </MudSelect>
                 </MudTd>
 
                 <MudTd>
-                    <MudDatePicker @bind-Date="context.BirthDate" Dense="true" />
+                    <MudDatePicker @bind-Date="context.BirthDate"
+                                   DateFormat="dd/MM/yyyy"
+                                   Dense="true" />
                 </MudTd>
 
                 <MudTd>
@@ -212,7 +427,7 @@
                    Color="Color.Primary"
                    Disabled="@IsSaveDisabled"
                    OnClick="Save">
-            Guardar Reserva
+            Guardar reserva
         </MudButton>
     </MudStack>
 </MudStack>
@@ -221,13 +436,29 @@
     private CreateReservationModel _model = new();
 
     private List<BoatListItem> _boats = [];
+    private List<RouteListItem> _routes = [];
     private List<AgencyListItem> _agencies = [];
     private List<SellerListItem> _sellers = [];
     private List<WeeklyAvailabilityItem> _weekly = [];
 
-    private Guid? _boatId;
-    private DateTime? _weekStart = DateTime.Today;
+    private readonly List<string> _nationalities =
+    [
+        "Ecuatoriana",
+        "Colombiana",
+        "Peruana",
+        "Argentina",
+        "Chilena",
+        "Venezolana",
+        "Estadounidense",
+        "Española",
+        "Mexicana",
+        "Otra"
+    ];
 
+    private Guid? _boatId;
+    private Guid? _routeId;
+
+    private DateTime _weekStart = GetStartOfWeek(DateTime.Today);
     private WeeklyAvailabilityItem? _selectedTrip;
 
     private int _adultCount = 1;
@@ -242,7 +473,7 @@
         !_model.Passengers.Any();
 
     private IEnumerable<DateTime> WeekDays =>
-        Enumerable.Range(0, 7).Select(x => GetStartOfWeek(_weekStart ?? DateTime.Today).AddDays(x));
+        Enumerable.Range(0, 5).Select(x => _weekStart.AddDays(x));
 
     protected override async Task OnInitializedAsync()
     {
@@ -250,44 +481,84 @@
         _agencies = await AgencyService.GetAllAsync();
         _sellers = await SellerService.GetAllAsync();
 
-        _weekStart = GetStartOfWeek(DateTime.Today);
-
-        await LoadWeeklyAvailability();
+        _weekly.Clear();
     }
 
     private async Task OnBoatChanged(Guid? value)
     {
         _boatId = value;
+        _routeId = null;
         _selectedTrip = null;
-        await LoadWeeklyAvailability();
+        _routes.Clear();
+        _weekly.Clear();
+
+        if (!_boatId.HasValue)
+            return;
+
+        _routes = await Service.GetRoutesByBoatAsync(_boatId.Value);
     }
 
-    private async Task OnWeekChanged(DateTime? value)
+    private async Task OnRouteChanged(Guid? value)
     {
-        _weekStart = GetStartOfWeek(value ?? DateTime.Today);
+        _routeId = value;
         _selectedTrip = null;
+        _weekly.Clear();
+
         await LoadWeeklyAvailability();
     }
 
     private async Task PreviousWeek()
     {
-        _weekStart = GetStartOfWeek((_weekStart ?? DateTime.Today).AddDays(-7));
+        _weekStart = GetStartOfWeek(_weekStart.AddDays(-7));
         _selectedTrip = null;
+
         await LoadWeeklyAvailability();
     }
 
     private async Task NextWeek()
     {
-        _weekStart = GetStartOfWeek((_weekStart ?? DateTime.Today).AddDays(7));
+        _weekStart = GetStartOfWeek(_weekStart.AddDays(7));
         _selectedTrip = null;
+
         await LoadWeeklyAvailability();
     }
 
     private async Task LoadWeeklyAvailability()
     {
-        _weekly = await Service.GetWeeklyAvailabilityAsync(
-            GetStartOfWeek(_weekStart ?? DateTime.Today),
-            _boatId);
+        if (!_boatId.HasValue || !_routeId.HasValue)
+        {
+            _weekly.Clear();
+            return;
+        }
+
+        var data = await Service.GetWeeklyAvailabilityAsync(
+            _weekStart,
+            _boatId,
+            _routeId);
+
+        _weekly = data
+            .GroupBy(x => new
+            {
+                x.BoatRouteScheduleId,
+                Date = x.TravelDate.Date
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.TravelDate)
+            .ThenBy(x => x.Schedule)
+            .ToList();
+    }
+
+    private IEnumerable<WeeklyAvailabilityItem> GetDayItems(DateTime day)
+    {
+        return _weekly
+            .Where(x => x.TravelDate.Date == day.Date)
+            .GroupBy(x => new
+            {
+                x.BoatRouteScheduleId,
+                Date = x.TravelDate.Date
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.Schedule);
     }
 
     private void SelectTrip(WeeklyAvailabilityItem item)
@@ -308,6 +579,8 @@
             passenger.Outbound = true;
             passenger.Return = false;
         }
+
+        StateHasChanged();
     }
 
     private async Task AddPassengerDialog()
@@ -317,13 +590,319 @@
 
         if (!result.Canceled && result.Data is ReservationPassengerModel passenger)
         {
+            if (string.IsNullOrWhiteSpace(passenger.Nationality))
+                passenger.Nationality = "Ecuatoriana";
+
+            if (string.IsNullOrWhiteSpace(passenger.PassengerType))
+                passenger.PassengerType = "Adult";
+
             _model.Passengers.Add(passenger);
+            SyncPassengerCountersFromList();
         }
     }
 
     private void RemovePassenger(ReservationPassengerModel passenger)
     {
         _model.Passengers.Remove(passenger);
+        SyncPassengerCountersFromList();
+    }
+
+    private async Task LoadPassengersFromExcel(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+
+            if (file is null)
+            {
+                Notifications.Error("Seleccione un archivo Excel.");
+                return;
+            }
+
+            if (!Path.GetExtension(file.Name).Equals(".xlsx", StringComparison.OrdinalIgnoreCase))
+            {
+                Notifications.Error("El archivo debe estar en formato .xlsx.");
+                return;
+            }
+
+            const long maxSize = 2 * 1024 * 1024;
+
+            if (file.Size > maxSize)
+            {
+                Notifications.Error("El archivo no debe superar los 2 MB.");
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(maxSize);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            memoryStream.Position = 0;
+
+            using var workbook = new XLWorkbook(memoryStream);
+            var worksheet = workbook.Worksheets.FirstOrDefault();
+
+            if (worksheet is null)
+            {
+                Notifications.Error("El archivo Excel no contiene hojas.");
+                return;
+            }
+
+            ValidateExcelHeaders(worksheet);
+
+            var passengers = new List<ReservationPassengerModel>();
+            var errors = new List<string>();
+
+            var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? 1;
+
+            if (lastRow < 2)
+            {
+                Notifications.Error("El archivo no contiene pasajeros.");
+                return;
+            }
+
+            for (var row = 2; row <= lastRow; row++)
+            {
+                var documentType = GetCellText(worksheet, row, 1);
+                var documentNumber = GetCellText(worksheet, row, 2);
+                var fullName = GetCellText(worksheet, row, 3);
+                var nationality = GetCellText(worksheet, row, 4);
+                var birthDateText = GetCellText(worksheet, row, 5);
+                var passengerTypeText = GetCellText(worksheet, row, 6);
+                var outboundText = GetCellText(worksheet, row, 7);
+                var returnText = GetCellText(worksheet, row, 8);
+
+                if (IsEmptyRow(documentType, documentNumber, fullName, nationality, birthDateText, passengerTypeText, outboundText, returnText))
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(documentType))
+                    errors.Add($"Fila {row}: el tipo de documento es obligatorio.");
+
+                if (!TryMapDocumentType(documentType, out var normalizedDocumentType))
+                    errors.Add($"Fila {row}: el tipo de documento debe ser Cédula o Pasaporte.");
+
+                if (string.IsNullOrWhiteSpace(documentNumber))
+                    errors.Add($"Fila {row}: el número de documento es obligatorio.");
+
+                if (string.IsNullOrWhiteSpace(fullName))
+                    errors.Add($"Fila {row}: los nombres y apellidos son obligatorios.");
+
+                if (string.IsNullOrWhiteSpace(nationality))
+                    errors.Add($"Fila {row}: la nacionalidad es obligatoria.");
+
+                if (!_nationalities.Contains(nationality, StringComparer.OrdinalIgnoreCase))
+                    errors.Add($"Fila {row}: la nacionalidad '{nationality}' no existe en el catálogo.");
+
+                if (!TryParseBirthDate(worksheet, row, 5, birthDateText, out var birthDate))
+                    errors.Add($"Fila {row}: la fecha de nacimiento no es válida. Use dd/MM/yyyy o yyyy-MM-dd.");
+
+                if (!TryMapPassengerType(passengerTypeText, out var passengerType))
+                    errors.Add($"Fila {row}: el tipo de pasajero debe ser Adulto, Infante o Cortesía.");
+
+                if (!TryParseBit(outboundText, out var outbound))
+                    errors.Add($"Fila {row}: el campo Viaja ida debe ser 1 o 0.");
+
+                if (!TryParseBit(returnText, out var passengerReturn))
+                    errors.Add($"Fila {row}: el campo Viaja regreso debe ser 1 o 0.");
+
+                if (errors.Any(x => x.StartsWith($"Fila {row}:")))
+                    continue;
+
+                passengers.Add(new ReservationPassengerModel
+                {
+
+                    DocumentNumber = documentNumber.Trim(),
+                    FullName = fullName.Trim(),
+                    Nationality = NormalizeNationality(nationality),
+                    BirthDate = birthDate,
+                    PassengerType = passengerType,
+                    Outbound = outbound,
+                    Return = passengerReturn
+                });
+            }
+
+            if (errors.Any())
+            {
+                Notifications.Error(string.Join(" ", errors.Take(5)));
+
+                if (errors.Count > 5)
+                    Notifications.Error($"Existen {errors.Count - 5} errores adicionales.");
+
+                return;
+            }
+
+            if (!passengers.Any())
+            {
+                Notifications.Error("No se encontraron pasajeros válidos en el archivo.");
+                return;
+            }
+
+            var duplicatedDocuments = passengers
+                .GroupBy(x => x.DocumentNumber.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Where(x => x.Count() > 1)
+                .Select(x => x.Key)
+                .ToList();
+
+            if (duplicatedDocuments.Any())
+            {
+                Notifications.Error($"El archivo contiene identificaciones duplicadas: {string.Join(", ", duplicatedDocuments)}.");
+                return;
+            }
+
+            var existingDocuments = _model.Passengers
+                .Select(x => x.DocumentNumber?.Trim())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var alreadyAdded = passengers
+                .Where(x => existingDocuments.Contains(x.DocumentNumber.Trim()))
+                .Select(x => x.DocumentNumber)
+                .Distinct()
+                .ToList();
+
+            if (alreadyAdded.Any())
+            {
+                Notifications.Error($"Ya existen pasajeros agregados con estas identificaciones: {string.Join(", ", alreadyAdded)}.");
+                return;
+            }
+
+            _model.Passengers.AddRange(passengers);
+            SyncPassengerCountersFromList();
+
+            Notifications.Success($"Se cargaron {passengers.Count} pasajeros correctamente.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error($"No se pudo cargar el Excel: {ex.Message}");
+        }
+    }
+
+    private static void ValidateExcelHeaders(IXLWorksheet worksheet)
+    {
+        var expectedHeaders = new[]
+        {
+        "Tipo de documento",
+        "Número de documento",
+        "Nombres y apellidos",
+        "Nacionalidad",
+        "Fecha de nacimiento",
+        "Tipo de pasajero",
+        "Viaja ida (1/0)",
+        "Viaja regreso (1/0)"
+    };
+
+        for (var col = 1; col <= expectedHeaders.Length; col++)
+        {
+            var current = worksheet.Cell(1, col).GetString().Trim();
+
+            if (!current.Equals(expectedHeaders[col - 1], StringComparison.OrdinalIgnoreCase))
+            {
+                throw new Exception($"La columna {col} debe ser '{expectedHeaders[col - 1]}'.");
+            }
+        }
+    }
+
+    private static string GetCellText(IXLWorksheet worksheet, int row, int column)
+    {
+        return worksheet.Cell(row, column).GetFormattedString().Trim();
+    }
+
+    private static bool IsEmptyRow(params string[] values)
+    {
+        return values.All(string.IsNullOrWhiteSpace);
+    }
+
+    private static bool TryParseBirthDate(
+       IXLWorksheet worksheet,
+       int row,
+       int column,
+       string value,
+       out DateTime? birthDate)
+    {
+        birthDate = null;
+
+        var cell = worksheet.Cell(row, column);
+
+        if (cell.DataType == XLDataType.DateTime)
+        {
+            birthDate = cell.GetDateTime();
+            return true;
+        }
+
+        var formats = new[]
+        {
+        "dd/MM/yyyy",
+        "yyyy-MM-dd",
+        "d/M/yyyy",
+        "dd-MM-yyyy"
+    };
+
+        if (DateTime.TryParseExact(
+                value,
+                formats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            birthDate = parsed;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseBit(string value, out bool result)
+    {
+        result = false;
+
+        if (value == "1")
+        {
+            result = true;
+            return true;
+        }
+
+        if (value == "0")
+        {
+            result = false;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryMapPassengerType(string value, out string passengerType)
+    {
+        passengerType = string.Empty;
+
+        var normalized = NormalizeText(value);
+
+        passengerType = normalized switch
+        {
+            "adulto" => "Adult",
+            "infante" => "Infant",
+            "cortesia" => "Courtesy",
+            _ => string.Empty
+        };
+
+        return !string.IsNullOrWhiteSpace(passengerType);
+    }
+
+    private string NormalizeNationality(string value)
+    {
+        return _nationalities.FirstOrDefault(x =>
+            x.Equals(value.Trim(), StringComparison.OrdinalIgnoreCase)) ?? value.Trim();
+    }
+
+    private static string NormalizeText(string value)
+    {
+        value = value.Trim().ToLowerInvariant();
+
+        return value
+            .Replace("á", "a")
+            .Replace("é", "e")
+            .Replace("í", "i")
+            .Replace("ó", "o")
+            .Replace("ú", "u");
     }
 
     private async Task Save()
@@ -334,7 +913,7 @@
 
             ValidatePassengerQuantities();
 
-            var id = await Service.CreateAsync(_model);
+            await Service.CreateAsync(_model);
 
             Notifications.Success("Reserva creada correctamente.");
 
@@ -357,30 +936,87 @@
         var courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
 
         if (adultCount != _adultCount)
-            throw new Exception($"Debe ingresar {_adultCount} pasajeros adultos.");
+            throw new Exception($"La cantidad de adultos no coincide. Indicados: {_adultCount}, cargados: {adultCount}.");
 
         if (infantCount != _infantCount)
-            throw new Exception($"Debe ingresar {_infantCount} pasajeros infantes.");
+            throw new Exception($"La cantidad de infantes no coincide. Indicados: {_infantCount}, cargados: {infantCount}.");
 
         if (courtesyCount != _courtesyCount)
-            throw new Exception($"Debe ingresar {_courtesyCount} cortesías.");
+            throw new Exception($"La cantidad de cortesías no coincide. Indicadas: {_courtesyCount}, cargadas: {courtesyCount}.");
     }
 
     private string GetAvailabilityClass(WeeklyAvailabilityItem item)
     {
         if (item.IsFull)
-            return "pa-2 mt-2 ct-slot ct-slot-full";
+            return "ct-slot-button ct-slot-full";
 
         if (_selectedTrip?.BoatRouteScheduleId == item.BoatRouteScheduleId &&
             _selectedTrip.TravelDate.Date == item.TravelDate.Date)
-            return "pa-2 mt-2 ct-slot ct-slot-selected";
+            return "ct-slot-button ct-slot-selected";
 
-        return "pa-2 mt-2 ct-slot ct-slot-available";
+        return "ct-slot-button ct-slot-available";
+    }
+
+    private string AvailabilityTitle
+    {
+        get
+        {
+            var boat = _boats.FirstOrDefault(x => x.Id == _boatId)?.Name;
+            var route = _routes.FirstOrDefault(x => x.Id == _routeId);
+
+            var routeName = route is null
+                ? null
+                : $"{route.Origin} - {route.Destination}";
+
+            if (!string.IsNullOrWhiteSpace(boat) && !string.IsNullOrWhiteSpace(routeName))
+                return $"{boat} · {routeName}";
+
+            if (!string.IsNullOrWhiteSpace(boat))
+                return boat;
+
+            return string.Empty;
+        }
     }
 
     private static DateTime GetStartOfWeek(DateTime date)
     {
         var diff = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
         return date.Date.AddDays(-diff);
+    }
+
+    private static string GetDayName(DateTime date)
+    {
+        return date.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Lun",
+            DayOfWeek.Tuesday => "Mar",
+            DayOfWeek.Wednesday => "Mié",
+            DayOfWeek.Thursday => "Jue",
+            DayOfWeek.Friday => "Vie",
+            DayOfWeek.Saturday => "Sáb",
+            DayOfWeek.Sunday => "Dom",
+            _ => string.Empty
+        };
+    }
+    private static bool TryMapDocumentType(string value, out string documentType)
+    {
+        documentType = string.Empty;
+
+        var normalized = NormalizeText(value);
+
+        documentType = normalized switch
+        {
+            "cedula" => "Cedula",
+            "pasaporte" => "Pasaporte",
+            _ => string.Empty
+        };
+
+        return !string.IsNullOrWhiteSpace(documentType);
+    }
+    private void SyncPassengerCountersFromList()
+    {
+        _adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
+        _infantCount = _model.Passengers.Count(x => x.PassengerType == "Infant");
+        _courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
     }
 }

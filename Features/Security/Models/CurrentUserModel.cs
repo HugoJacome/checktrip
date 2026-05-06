@@ -7,4 +7,6 @@ public class CurrentUserModel
     public string Username { get; set; } = default!;
     public string FullName { get; set; } = default!;
     public List<string> Roles { get; set; } = [];
+
+    public DateTime LoginUtc { get; set; } = DateTime.UtcNow;
 }

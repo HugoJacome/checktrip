@@ -70,13 +70,24 @@ public class ReservationService
     }
 
     public async Task<List<WeeklyAvailabilityItem>> GetWeeklyAvailabilityAsync(
-        DateTime weekStart,
-        Guid? boatId)
+     DateTime weekStart,
+     Guid? routeId)
     {
-        var schedules = await _repo.GetRouteSchedulesByBoatAsync(boatId);
+        var schedules = await _repo.GetRouteSchedulesByRouteAsync(routeId);
+
+        schedules = schedules
+            .GroupBy(x => new
+            {
+                x.RouteId,
+                x.BoatId,
+                x.ScheduleId
+            })
+            .Select(x => x.First())
+            .ToList();
+
         var result = new List<WeeklyAvailabilityItem>();
 
-        for (var i = 0; i < 7; i++)
+        for (var i = 0; i < 5; i++)
         {
             var date = weekStart.Date.AddDays(i);
 
@@ -543,5 +554,84 @@ public class ReservationService
             months--;
 
         return months;
+    }
+    public async Task<List<RouteListItem>> GetRoutesByBoatAsync(Guid boatId)
+    {
+        var routes = await _repo.GetRoutesByBoatAsync(boatId);
+
+        return routes
+            .GroupBy(x => x.Id)
+            .Select(x => x.First())
+            .Select(x => new RouteListItem
+            {
+                Id = x.Id,
+                Origin = x.Origin,
+                Destination = x.Destination
+            })
+            .OrderBy(x => x.Origin)
+            .ThenBy(x => x.Destination)
+            .ToList();
+    }
+
+    public async Task<List<WeeklyAvailabilityItem>> GetWeeklyAvailabilityAsync(
+        DateTime weekStart,
+        Guid? boatId,
+        Guid? routeId)
+    {
+        if (!boatId.HasValue || !routeId.HasValue)
+            return [];
+
+        var schedules = await _repo.GetRouteSchedulesAsync(
+            boatId.Value,
+            routeId.Value);
+
+        schedules = schedules
+            .GroupBy(x => new
+            {
+                x.BoatId,
+                x.RouteId,
+                x.ScheduleId
+            })
+            .Select(x => x.First())
+            .ToList();
+
+        var result = new List<WeeklyAvailabilityItem>();
+
+        for (var i = 0; i < 5; i++)
+        {
+            var date = weekStart.Date.AddDays(i);
+
+            foreach (var schedule in schedules)
+            {
+                var reserved = await _repo.CountReservedAsync(
+                    schedule.Id,
+                    date,
+                    outbound: true);
+
+                result.Add(new WeeklyAvailabilityItem
+                {
+                    BoatRouteScheduleId = schedule.Id,
+                    BoatId = schedule.BoatId,
+                    Boat = schedule.Boat.Name,
+                    Route = $"{schedule.Route.Origin} - {schedule.Route.Destination}",
+                    Schedule = schedule.Schedule.Name,
+                    TravelDate = date,
+                    Capacity = schedule.Boat.Capacity,
+                    ExtraCapacity = schedule.Boat.ExtraCapacity,
+                    Reserved = reserved
+                });
+            }
+        }
+
+        return result
+            .GroupBy(x => new
+            {
+                x.BoatRouteScheduleId,
+                Date = x.TravelDate.Date
+            })
+            .Select(x => x.First())
+            .OrderBy(x => x.TravelDate)
+            .ThenBy(x => x.Schedule)
+            .ToList();
     }
 }

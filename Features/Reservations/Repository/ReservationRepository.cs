@@ -158,7 +158,7 @@ public class ReservationRepository : BaseRepository<Reservation>
             .ToListAsync();
     }
 
-    public async Task<List<BoatRouteSchedule>> GetRouteSchedulesByBoatAsync(Guid? boatId)
+    public async Task<List<BoatRouteSchedule>> GetRouteSchedulesByRouteAsync(Guid? routeId)
     {
         var tenantId = _tenant.GetTenantId();
 
@@ -171,10 +171,51 @@ public class ReservationRepository : BaseRepository<Reservation>
             .Include(x => x.Schedule)
             .Where(x => x.TenantId == tenantId && x.IsActive);
 
-        if (boatId.HasValue)
-            query = query.Where(x => x.BoatId == boatId.Value);
+        if (routeId.HasValue)
+            query = query.Where(x => x.RouteId == routeId.Value);
 
         return await query
+            .OrderBy(x => x.Schedule.Name)
+            .ThenBy(x => x.Boat.Name)
+            .ToListAsync();
+    }
+    public async Task<List<Route>> GetRoutesByBoatAsync(Guid boatId)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatRouteSchedules
+            .AsNoTracking()
+            .Include(x => x.Route)
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.IsActive &&
+                x.BoatId == boatId &&
+                x.Route != null)
+            .Select(x => x.Route)
+            .Distinct()
+            .OrderBy(x => x.Origin)
+            .ThenBy(x => x.Destination)
+            .ToListAsync();
+    }
+
+    public async Task<List<BoatRouteSchedule>> GetRouteSchedulesAsync(Guid boatId, Guid routeId)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatRouteSchedules
+            .AsNoTracking()
+            .Include(x => x.Boat)
+            .Include(x => x.Route)
+            .Include(x => x.Schedule)
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.IsActive &&
+                x.BoatId == boatId &&
+                x.RouteId == routeId)
             .OrderBy(x => x.Schedule.Name)
             .ToListAsync();
     }
