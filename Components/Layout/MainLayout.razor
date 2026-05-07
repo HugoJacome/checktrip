@@ -26,59 +26,65 @@ else if (_user is null)
 }
 else
 {
-    <MudLayout>
+    <MudLayout Class="ct-layout">
+
+        <MudDrawer @bind-Open="_drawerOpen"
+                   Variant="DrawerVariant.Responsive"
+                   Elevation="0"
+                   Width="280px"
+                   Class="ct-drawer">
+
+            <div class="ct-drawer-logo">
+                <div class="ct-drawer-brand">
+                    CHECK<span>TRIP</span>
+                </div>
+                <div class="ct-drawer-subtitle">
+                    SISTEMA DE GESTIÓN
+                </div>
+            </div>
+
+            @* <MudDivider Class="ct-drawer-divider" /> *@
+
+            <NavMenu />
+        </MudDrawer>
+
         <MudAppBar Elevation="0" Class="ct-appbar">
             <MudIconButton Icon="@Icons.Material.Filled.Menu"
                            Color="Color.Inherit"
                            Edge="Edge.Start"
-                           OnClick="@ToggleDrawer" />
+                           OnClick="@ToggleDrawer"
+                           Class="ct-menu-button" />
 
-            <MudText Typo="Typo.h6" Class="fw-bold">
-                CheckTrip
+            <MudText Typo="Typo.h5" Class="ct-appbar-logo">
+                CHECKTRIP
             </MudText>
 
             <MudSpacer />
 
             <MudIconButton Icon="@(_isDarkMode? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit"
-                           OnClick="ToggleTheme" />
+                           OnClick="ToggleTheme"
+                           Class="ct-top-icon" />
 
-            <MudText Typo="Typo.body2" Class="mx-4">
+            <MudText Typo="Typo.body1" Class="ct-user-name">
                 @_user.FullName
             </MudText>
 
             <MudButton Color="Color.Inherit"
                        Variant="Variant.Text"
                        StartIcon="@Icons.Material.Filled.Logout"
-                       OnClick="Logout">
+                       OnClick="Logout"
+                       Class="ct-logout-button">
                 Salir
             </MudButton>
         </MudAppBar>
 
-        <MudDrawer @bind-Open="_drawerOpen"
-                   Variant="DrawerVariant.Responsive"
-                   Elevation="0"
-                   Class="ct-drawer">
-            <MudStack Class="pa-4" Spacing="1">
-                <MudText Typo="Typo.h6" Class="fw-bold">
-                    CheckTrip
-                </MudText>
-
-                <MudText Typo="Typo.caption">
-                    Sistema de gestión
-                </MudText>
-            </MudStack>
-
-            <MudDivider />
-
-            <NavMenu />
-        </MudDrawer>
-
         <MudMainContent Class="ct-main-content">
-            <MudContainer MaxWidth="MaxWidth.False" Class="pa-5">
+            <MudContainer MaxWidth="MaxWidth.False" Class="ct-page-container">
                 @Body
             </MudContainer>
         </MudMainContent>
+
     </MudLayout>
 }
 
@@ -128,48 +134,36 @@ else
     {
         PaletteLight = new PaletteLight
         {
-            Primary = "#5a70aa",
-            Secondary = "#3b3b3b",
-
-            AppbarBackground = "#5a70aa",
+            Primary = "#4f6fa9",
+            Secondary = "#3f4143",
+            AppbarBackground = "#4f6fa9",
             AppbarText = "#ffffff",
-
-            DrawerBackground = "#3b3b3b",
+            DrawerBackground = "#3f4143",
             DrawerText = "#ffffff",
             DrawerIcon = "#ffffff",
-
-            Background = "#f5f6fa",
+            Background = "#f4f6fb",
             Surface = "#ffffff",
-
-            TextPrimary = "#3b3b3b",
+            TextPrimary = "#3f4143",
             TextSecondary = "#6c757d",
-
-            ActionDefault = "#5a70aa",
-            Divider = "#e0e0e0"
+            ActionDefault = "#4f6fa9",
+            Divider = "#5a5c5f"
         },
-
         PaletteDark = new PaletteDark
         {
-            Primary = "#7f95d1",
-            Secondary = "#d6d6d6",
-
-            AppbarBackground = "#1f2533",
+            Primary = "#4f6fa9",
+            Secondary = "#3f4143",
+            AppbarBackground = "#4f6fa9",
             AppbarText = "#ffffff",
-
-            DrawerBackground = "#171b24",
+            DrawerBackground = "#3f4143",
             DrawerText = "#ffffff",
             DrawerIcon = "#ffffff",
-
             Background = "#11151c",
             Surface = "#1b202b",
-
             TextPrimary = "#ffffff",
             TextSecondary = "#c7c7c7",
-
             ActionDefault = "#7f95d1",
             Divider = "#2e3442"
         },
-
         Typography = new Typography
         {
             Default = new DefaultTypography
@@ -177,20 +171,15 @@ else
                 FontFamily = new[] { "Barlow", "Arial", "sans-serif" },
                 FontWeight = "400"
             },
-            H4 = new H4Typography
-            {
-                FontFamily = new[] { "Barlow", "Arial", "sans-serif" },
-                FontWeight = "700"
-            },
             H5 = new H5Typography
             {
                 FontFamily = new[] { "Barlow", "Arial", "sans-serif" },
-                FontWeight = "700"
+                FontWeight = "800"
             },
             H6 = new H6Typography
             {
                 FontFamily = new[] { "Barlow", "Arial", "sans-serif" },
-                FontWeight = "700"
+                FontWeight = "800"
             },
             Button = new ButtonTypography
             {
@@ -199,7 +188,6 @@ else
                 TextTransform = "none"
             }
         },
-
         LayoutProperties = new LayoutProperties
         {
             DefaultBorderRadius = "14px"

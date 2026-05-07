@@ -437,3 +437,176 @@ body {
     border-radius: 8px;
     padding: 6px 10px;
 }
+
+
+
+/* =========================================================
+   LAYOUT
+========================================================= */
+.ct-layout {
+    min-height: 100vh;
+    background: #f4f6fb;
+}
+
+.ct-appbar {
+    height: 72px !important;
+    background: #4f6fa9 !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    padding: 0 28px !important;
+}
+
+.ct-menu-button {
+    margin-right: 12px !important;
+}
+
+.ct-appbar-logo {
+    font-weight: 900 !important;
+    letter-spacing: -1px;
+    color: #ffffff;
+}
+
+.ct-top-icon {
+    margin-right: 18px !important;
+}
+
+.ct-user-name {
+    font-weight: 700 !important;
+    margin-right: 16px !important;
+    color: #ffffff;
+}
+
+.ct-logout-button {
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    text-transform: none !important;
+}
+
+.ct-drawer {
+    background: #3f4143 !important;
+    color: #ffffff !important;
+    border-right: none !important;
+}
+
+.ct-drawer-logo {
+    height: 100px;
+    padding: 22px 30px 14px 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+
+.ct-drawer-brand {
+    font-size: 30px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -1px;
+    color: #ffffff;
+}
+
+    .ct-drawer-brand span {
+        color: #ffffff;
+    }
+
+.ct-drawer-subtitle {
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: .8px;
+    color: rgba(255, 255, 255, .75);
+}
+
+.ct-drawer-divider {
+    border-color: rgba(255,255,255,.28) !important;
+}
+
+.ct-nav-menu {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+    color: #ffffff !important;
+}
+
+.ct-menu-title {
+    padding: 16px 20px 10px 20px !important;
+    margin: 0 !important;
+    color: #ffffff !important;
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
+
+.ct-nav-menu .mud-nav-group {
+    margin-top: 0 !important;
+}
+
+    .ct-nav-menu .mud-nav-link,
+    .ct-nav-menu .mud-nav-group > .mud-nav-link {
+        min-height: 44px;
+    }
+
+    .ct-nav-menu .mud-nav-link .mud-nav-link-text,
+    .ct-nav-menu .mud-nav-group .mud-nav-link-text {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+    }
+
+    .ct-nav-menu .mud-nav-link .mud-icon-root,
+    .ct-nav-menu .mud-nav-group .mud-icon-root {
+        color: #ffffff !important;
+        font-size: 26px !important;
+    }
+
+    .ct-nav-menu .mud-nav-link:hover,
+    .ct-nav-menu .mud-nav-group > .mud-nav-link:hover {
+        background: rgba(255,255,255,.08) !important;
+    }
+
+    .ct-nav-menu .mud-nav-link.active:not(.mud-nav-link-disabled) {
+        background: rgba(255,255,255,.10) !important;
+        color: #ffffff !important;
+    }
+
+.ct-nav-menu .mud-navmenu-group .mud-collapse-container {
+    padding-left: 20px;
+}
+
+    .ct-nav-menu .mud-navmenu-group .mud-collapse-container .mud-nav-link {
+        min-height: 46px;
+        padding-left: 28px !important;
+    }
+
+    .ct-nav-menu .mud-navmenu-group .mud-collapse-container .mud-icon-root {
+        font-size: 26px !important;
+    }
+
+.ct-main-content {
+    min-height: 100vh;
+    background: #f4f6fb;
+    padding-top: 72px;
+}
+
+.ct-page-container {
+    padding: 48px 32px !important;
+}
+
+.mud-main-content {
+    background: #f4f6fb;
+}
+
+@media (max-width: 960px) {
+    .ct-appbar {
+        padding: 0 16px !important;
+    }
+
+    .ct-appbar-logo {
+        font-size: 22px !important;
+    }
+
+    .ct-user-name {
+        display: none;
+    }
+
+    .ct-page-container {
+        padding: 32px 20px !important;
+    }
+}
