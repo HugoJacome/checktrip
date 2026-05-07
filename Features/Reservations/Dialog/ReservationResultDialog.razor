@@ -1,0 +1,71 @@
+﻿@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3" AlignItems="AlignItems.Center" Class="pa-4">
+
+            <MudIcon Icon="@(Success? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.Error)"
+                     Color="@(Success ? Color.Success : Color.Error)"
+                     Size="Size.Large" />
+
+            <MudText Typo="Typo.h5" Align="Align.Center">
+                @Title
+            </MudText>
+
+            <MudText Typo="Typo.body1" Align="Align.Center">
+                @Message
+            </MudText>
+
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        @if (Success)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       OnClick="NewReservation">
+                Nueva reserva
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="Finish">
+                Finalizar
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       OnClick="Close">
+                Entendido
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public bool Success { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public Guid? ReservationId { get; set; }
+
+    private void NewReservation()
+    {
+        MudDialog.Close(DialogResult.Ok("New"));
+    }
+
+    private void Finish()
+    {
+        MudDialog.Close(DialogResult.Ok("Finish"));
+    }
+
+    private void Close()
+    {
+        MudDialog.Close();
+    }
+}

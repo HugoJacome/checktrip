@@ -104,6 +104,36 @@ public class AppDbContext : DbContext
                 .IsUnique();
         });
 
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.Property(x => x.BirthDate)
+                .HasColumnType("timestamp without time zone");
+
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+        });
+
+        modelBuilder.Entity<Reservation>(entity =>
+        {
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.Property(x => x.UpdatedAt)
+                .HasColumnType("timestamp with time zone");
+        });
+
+        modelBuilder.Entity<ReservationItem>(entity =>
+        {
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+        });
+
+        modelBuilder.Entity<ReservationHistory>(entity =>
+        {
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+        });
+
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }

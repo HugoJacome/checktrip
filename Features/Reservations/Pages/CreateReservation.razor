@@ -354,7 +354,12 @@
             </MudStack>
         </MudStack>
 
-        <MudTable Items="_model.Passengers" Dense="true" Hover="true" Bordered="true" Class="mt-3">
+        <MudTable Items="_model.Passengers"
+                  Dense="true"
+                  Hover="true"
+                  Bordered="true"
+                  Class="mt-3"
+                  RowClassFunc="GetPassengerRowClass">
             <HeaderContent>
                 <MudTh>N°</MudTh>
                 <MudTh>Identificación</MudTh>
@@ -402,11 +407,17 @@
                 </MudTd>
 
                 <MudTd>
-                    <MudCheckBox T="bool" @bind-Checked="context.Outbound" />
+                    <MudCheckBox T="bool"
+                                 Value="context.Outbound"
+                                 ValueChanged="@((bool value) => context.Outbound = value)"
+                                 Dense="true" />
                 </MudTd>
 
                 <MudTd>
-                    <MudCheckBox T="bool" @bind-Checked="context.Return" />
+                    <MudCheckBox T="bool"
+                                 Value="context.Return"
+                                 ValueChanged="@((bool value) => context.Return = value)"
+                                 Dense="true" />
                 </MudTd>
 
                 <MudTd>
@@ -573,12 +584,6 @@
 
         _model.OutboundRouteScheduleId = item.BoatRouteScheduleId;
         _model.OutboundDate = item.TravelDate;
-
-        foreach (var passenger in _model.Passengers)
-        {
-            passenger.Outbound = true;
-            passenger.Return = false;
-        }
 
         StateHasChanged();
     }
@@ -855,13 +860,15 @@
     {
         result = false;
 
-        if (value == "1")
+        value = value.Trim();
+
+        if (value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("sí", StringComparison.OrdinalIgnoreCase) || value.Equals("si", StringComparison.OrdinalIgnoreCase))
         {
             result = true;
             return true;
         }
 
-        if (value == "0")
+        if (value == "0" || value.Equals("false", StringComparison.OrdinalIgnoreCase) || value.Equals("no", StringComparison.OrdinalIgnoreCase))
         {
             result = false;
             return true;
@@ -913,15 +920,43 @@
 
             ValidatePassengerQuantities();
 
-            await Service.CreateAsync(_model);
+            var reservationId = await Service.CreateAsync(_model);
 
-            Notifications.Success("Reserva creada correctamente.");
+            var parameters = new DialogParameters
+            {
+                ["Success"] = true,
+                ["Title"] = "Reserva guardada",
+                ["Message"] = "La reserva se guardó correctamente.",
+                ["ReservationId"] = reservationId
+            };
 
-            Navigation.NavigateTo("/reservations/monitor");
+            var dialog = await Dialog.ShowAsync<ReservationResultDialog>(
+                "Resultado de la reserva",
+                parameters);
+
+            var result = await dialog.Result;
+
+            if (!result.Canceled && result.Data is string action)
+            {
+                if (action == "New")
+                    ResetForm();
+
+                if (action == "Finish")
+                    Navigation.NavigateTo("/");
+            }
         }
         catch (Exception ex)
         {
-            Notifications.Error(ex.Message);
+            var parameters = new DialogParameters
+            {
+                ["Success"] = false,
+                ["Title"] = "No se pudo guardar",
+                ["Message"] = ex.Message
+            };
+
+            await Dialog.ShowAsync<ReservationResultDialog>(
+                "Resultado de la reserva",
+                parameters);
         }
         finally
         {
@@ -1018,5 +1053,33 @@
         _adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
         _infantCount = _model.Passengers.Count(x => x.PassengerType == "Infant");
         _courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
+    }
+    private string GetPassengerRowClass(ReservationPassengerModel passenger, int rowNumber)
+    {
+        return passenger.PassengerType switch
+        {
+            "Adult" => "ct-passenger-adult",
+            "Infant" => "ct-passenger-infant",
+            "Courtesy" => "ct-passenger-courtesy",
+            _ => string.Empty
+        };
+    }
+
+    private void ResetForm()
+    {
+        _model = new CreateReservationModel();
+
+        _boatId = null;
+        _routeId = null;
+        _selectedTrip = null;
+
+        _routes.Clear();
+        _weekly.Clear();
+
+        _adultCount = 0;
+        _infantCount = 0;
+        _courtesyCount = 0;
+
+        StateHasChanged();
     }
 }

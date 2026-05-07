@@ -164,7 +164,7 @@ html, body {
 }
 
 .ct-day-card {
-    min-height: 220px;
+    min-height: 150px;
     background: #f4f4f4;
 }
 
@@ -296,4 +296,21 @@ html, body {
     .ct-day-card {
         min-height: auto;
     }
+}
+
+.ct-passenger-adult {
+    background: #d1d1d1 !important;
+}
+
+.ct-passenger-infant {
+    background: #c9ff75 !important;
+}
+
+.ct-passenger-courtesy {
+    background: #a9d4f2 !important;
+}
+
+.ct-passenger-type-chip {
+    border-radius: 8px;
+    padding: 6px 10px;
 }

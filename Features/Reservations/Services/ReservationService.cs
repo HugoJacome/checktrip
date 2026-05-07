@@ -6,6 +6,7 @@ using CheckTrip.Web.Infrastructure.Audit;
 using CheckTrip.Web.Infrastructure.Auth;
 using CheckTrip.Web.Infrastructure.Repositories;
 using CheckTrip.Web.Infrastructure.Tenant;
+using Microsoft.EntityFrameworkCore;
 
 namespace CheckTrip.Web.Features.Reservations.Services;
 
@@ -126,95 +127,115 @@ public class ReservationService
         if (user is null)
             throw new Exception("Usuario no autenticado.");
 
-        var outboundPassengers = model.Passengers.Count(x => x.Outbound);
-        var returnPassengers = model.Passengers.Count(x => x.Return);
+        var reservedPassengers = model.Passengers.Count;
 
         if (model.OutboundRouteScheduleId.HasValue && model.OutboundDate.HasValue)
         {
-            var outboundAvailability = await GetAvailabilityAsync(
+            var availability = await GetAvailabilityAsync(
                 model.OutboundRouteScheduleId.Value,
                 model.OutboundDate.Value,
                 outbound: true);
 
-            if (outboundAvailability.Available < outboundPassengers)
-                throw new Exception("No existen cupos suficientes para la ida.");
+            if (availability.Available < reservedPassengers)
+                throw new Exception("No existen cupos suficientes para la reserva.");
         }
 
-        if (model.ReturnRouteScheduleId.HasValue && model.ReturnDate.HasValue)
+        var strategy = _db.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
         {
-            var returnAvailability = await GetAvailabilityAsync(
-                model.ReturnRouteScheduleId.Value,
-                model.ReturnDate.Value,
-                outbound: false);
+            await using var tx = await _db.Database.BeginTransactionAsync();
 
-            if (returnAvailability.Available < returnPassengers)
-                throw new Exception("No existen cupos suficientes para el retorno.");
-        }
+            var reservation = new Reservation
+            {
+                TenantId = tenantId,
+                ReservationCode = await GenerateReservationCodeAsync(),
+                ExternalReference = model.ExternalReference,
+                AgencyId = model.AgencyId,
+                SellerId = model.SellerId,
+                ContactName = model.ContactName,
+                ContactPhone = model.ContactPhone,
+                Status = "Active",
+                PaymentStatus = model.PaymentStatus,
+                CreatedByUserId = user.UserId,
+                CreatedAt = DateTime.UtcNow,
+                Notes = model.Notes,
+                Items = []
+            };
 
-        using var tx = await _db.Database.BeginTransactionAsync();
+            foreach (var passenger in model.Passengers)
+            {
+                var customer = await GetOrCreateCustomerAsync(passenger, tenantId);
 
-        var reservation = new Reservation
-        {
-            TenantId = tenantId,
-            ReservationCode = await GenerateReservationCodeAsync(),
-            ExternalReference = model.ExternalReference,
-            AgencyId = model.AgencyId,
-            SellerId = model.SellerId,
-            ContactName = model.ContactName,
-            ContactPhone = model.ContactPhone,
-            Status = "Active",
-            PaymentStatus = model.PaymentStatus,
-            CreatedByUserId = user.UserId,
-            CreatedAt = DateTime.UtcNow,
-            Notes = model.Notes,
-            Items = []
-        };
+                reservation.Items.Add(new ReservationItem
+                {
+                    TenantId = tenantId,
+                    Reservation = reservation,
+                    CustomerId = customer.Id,
+                    TripType = GetTripType(passenger),
+                    PassengerType = passenger.PassengerType,
 
-        foreach (var passenger in model.Passengers)
-        {
-            var customer = await GetOrCreateCustomerAsync(passenger, tenantId);
+                    OutboundRouteScheduleId = model.OutboundRouteScheduleId,
+                    OutboundTravelDate = model.OutboundDate.HasValue
+                        ? DateOnly.FromDateTime(model.OutboundDate.Value)
+                        : null,
 
-            reservation.Items.Add(new ReservationItem
+                    ReturnRouteScheduleId = null,
+                    ReturnTravelDate = null,
+
+                    Status = "Reserved",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            _db.Reservations.Add(reservation);
+
+            _db.ReservationHistory.Add(new ReservationHistory
             {
                 TenantId = tenantId,
                 Reservation = reservation,
-                CustomerId = customer.Id,
-                TripType = GetTripType(passenger),
-                PassengerType = passenger.PassengerType,
-
-                OutboundRouteScheduleId = passenger.Outbound ? model.OutboundRouteScheduleId : null,
-                OutboundTravelDate = passenger.Outbound && model.OutboundDate.HasValue
-                    ? DateOnly.FromDateTime(model.OutboundDate.Value)
-                    : null,
-
-                ReturnRouteScheduleId = passenger.Return ? model.ReturnRouteScheduleId : null,
-                ReturnTravelDate = passenger.Return && model.ReturnDate.HasValue
-                    ? DateOnly.FromDateTime(model.ReturnDate.Value)
-                    : null,
-
-                Status = "Reserved",
+                Action = "Create",
+                NewStatus = reservation.Status,
+                CreatedByUserId = user.UserId,
                 CreatedAt = DateTime.UtcNow
             });
-        }
 
-        _db.Reservations.Add(reservation);
+            await _db.SaveChangesAsync();
+            await tx.CommitAsync();
+            await _audit.LogAsync("Reservation", "Create", null, new
+            {
+                reservation.Id,
+                reservation.TenantId,
+                reservation.ReservationCode,
+                reservation.ExternalReference,
+                reservation.AgencyId,
+                reservation.SellerId,
+                reservation.ContactName,
+                reservation.ContactPhone,
+                reservation.Status,
+                reservation.PaymentStatus,
+                reservation.CreatedByUserId,
+                reservation.CreatedAt,
+                reservation.Notes,
+                Items = reservation.Items.Select(x => new
+                {
+                    x.Id,
+                    x.CustomerId,
+                    x.PassengerType,
+                    x.TripType,
+                    x.OutboundRouteScheduleId,
+                    x.OutboundTravelDate,
+                    x.ReturnRouteScheduleId,
+                    x.ReturnTravelDate,
+                    x.Status,
+                    x.UnitPrice,
+                    x.Discount,
+                    x.TotalPrice
+                }).ToList()
+            });
 
-        _db.ReservationHistory.Add(new ReservationHistory
-        {
-            TenantId = tenantId,
-            Reservation = reservation,
-            Action = "Create",
-            NewStatus = reservation.Status,
-            CreatedByUserId = user.UserId,
-            CreatedAt = DateTime.UtcNow
+            return reservation.Id;
         });
-
-        await _db.SaveChangesAsync();
-        await tx.CommitAsync();
-
-        await _audit.LogAsync("Reservation", "Create", null, reservation);
-
-        return reservation.Id;
     }
 
     public async Task CancelAsync(Guid reservationId, string? reason)
@@ -250,8 +271,19 @@ public class ReservationService
         });
 
         await _db.SaveChangesAsync();
-
-        await _audit.LogAsync("Reservation", "Cancel", new { oldStatus }, reservation);
+        await _audit.LogAsync("Reservation", "Cancel", new { oldStatus }, new
+        {
+            reservation.Id,
+            reservation.ReservationCode,
+            reservation.Status,
+            reservation.UpdatedAt,
+            Items = reservation.Items.Select(x => new
+            {
+                x.Id,
+                x.CustomerId,
+                x.Status
+            }).ToList()
+        });
     }
 
     public async Task FinishAsync(Guid reservationId)
@@ -286,8 +318,19 @@ public class ReservationService
         });
 
         await _db.SaveChangesAsync();
-
-        await _audit.LogAsync("Reservation", "Finish", new { oldStatus }, reservation);
+        await _audit.LogAsync("Reservation", "Finish", new { oldStatus }, new
+        {
+            reservation.Id,
+            reservation.ReservationCode,
+            reservation.Status,
+            reservation.UpdatedAt,
+            Items = reservation.Items.Select(x => new
+            {
+                x.Id,
+                x.CustomerId,
+                x.Status
+            }).ToList()
+        });
     }
 
     public async Task ChangePaymentStatusAsync(Guid reservationId, string paymentStatus)
@@ -417,13 +460,8 @@ public class ReservationService
         if (model.Passengers.Any(x => string.IsNullOrWhiteSpace(x.FullName)))
             throw new Exception("Todos los pasajeros deben tener nombres.");
 
-        if (model.Passengers.Any(x => x.Outbound) &&
-            (!model.OutboundRouteScheduleId.HasValue || !model.OutboundDate.HasValue))
-            throw new Exception("Debe seleccionar viaje y fecha de ida.");
-
-        if (model.Passengers.Any(x => x.Return) &&
-            (!model.ReturnRouteScheduleId.HasValue || !model.ReturnDate.HasValue))
-            throw new Exception("Debe seleccionar viaje y fecha de retorno.");
+        if (!model.OutboundRouteScheduleId.HasValue || !model.OutboundDate.HasValue)
+            throw new Exception("Debe seleccionar viaje y fecha de la reserva.");
 
         var duplicatedDocuments = model.Passengers
             .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
@@ -474,8 +512,8 @@ public class ReservationService
         {
             customer.DocumentType = passenger.DocumentType;
             customer.FullName = fullName;
-            customer.Nationality = passenger.Nationality;
-            customer.BirthDate = passenger.BirthDate;
+            customer.Nationality = passenger.Nationality; 
+            customer.BirthDate = NormalizeBirthDate(passenger.BirthDate);
             customer.Age = age;
             return customer;
         }
@@ -487,7 +525,7 @@ public class ReservationService
             DocumentNumber = document,
             FullName = fullName,
             Nationality = passenger.Nationality,
-            BirthDate = passenger.BirthDate,
+            BirthDate = NormalizeBirthDate(passenger.BirthDate),
             Age = age,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -506,7 +544,10 @@ public class ReservationService
         if (passenger.Outbound)
             return "Outbound";
 
-        return "Return";
+        if (passenger.Return)
+            return "Return";
+
+        return "Outbound";
     }
 
     private async Task<string> GenerateReservationCodeAsync()
@@ -633,5 +674,12 @@ public class ReservationService
             .OrderBy(x => x.TravelDate)
             .ThenBy(x => x.Schedule)
             .ToList();
+    }
+    private static DateTime? NormalizeBirthDate(DateTime? value)
+    {
+        if (!value.HasValue)
+            return null;
+
+        return DateTime.SpecifyKind(value.Value.Date, DateTimeKind.Unspecified);
     }
 }
