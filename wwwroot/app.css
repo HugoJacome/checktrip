@@ -21,19 +21,21 @@ h1:focus {
 }
 
     .blazor-error-boundary::after {
-        content: "An error has occurred."
+        content: "An error has occurred.";
     }
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+.form-floating > .form-control-plaintext::placeholder,
+.form-floating > .form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+.form-floating > .form-control-plaintext:focus::placeholder,
+.form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
 
@@ -67,32 +69,52 @@ h1:focus {
     font-weight: 700;
 }
 
-html, body {
+html,
+body {
     font-family: 'Barlow', Arial, sans-serif;
 }
 
+/* =========================================================
+   LOGIN
+========================================================= */
+
 .ct-login-page {
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    background: #eef3f7;
+    width: 100%;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: clamp(24px, 10vw, 180px);
+    background-image: url('/images/turtle.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    overflow: hidden;
 }
 
-.ct-login-left {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    padding: 48px;
+.ct-login-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient( 90deg, rgba(238, 243, 247, 0.92) 0%, rgba(238, 243, 247, 0.78) 38%, rgba(238, 243, 247, 0.18) 70%, rgba(238, 243, 247, 0.04) 100% );
+    z-index: 1;
+}
+
+.ct-login-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 520px;
 }
 
 .ct-login-card {
     width: 100%;
-    max-width: 500px;
-    background: #ffffff;
-    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.78);
+    backdrop-filter: blur(10px);
+    border-radius: 22px;
     padding: 64px 56px;
-    box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255,255,255,0.35);
 }
 
 .ct-logo {
@@ -104,18 +126,18 @@ html, body {
 }
 
     .ct-logo span {
-        color: #3b3f3f;
+        color: #353535;
     }
 
     .ct-logo strong {
-        color: #5872ad;
+        color: #5d74b3;
         font-weight: 900;
     }
 
 .ct-title {
     font-size: 44px;
     font-weight: 700;
-    color: #3b3f3f;
+    color: #353535;
     line-height: 1;
     margin-bottom: 8px;
 }
@@ -123,49 +145,162 @@ html, body {
 .ct-subtitle {
     font-size: 18px;
     font-weight: 400;
-    color: #3b3f3f;
+    color: #555;
 }
 
 .ct-login-button {
-    margin-top: 18px;
-    height: 48px;
-    border-radius: 4px;
+    margin-top: 20px;
+    height: 52px;
+    border-radius: 12px !important;
     font-weight: 700;
+    letter-spacing: .5px;
+    box-shadow: none !important;
 }
 
 .ct-footer {
     margin-top: 24px;
+    text-align: center;
     font-size: 18px;
     color: #3b3f3f;
 }
 
 .ct-login-right {
-    background-image: url('/images/login-turtle.jpg');
-    background-size: cover;
-    background-position: center;
+    display: none;
 }
 
+/* =========================================================
+   LOGIN INPUTS
+========================================================= */
+
+.ct-login-input .mud-input-control {
+    margin-top: 6px;
+}
+
+.ct-login-input .mud-input-slot {
+    background: rgba(255,255,255,0.55) !important;
+    backdrop-filter: blur(5px);
+    border-radius: 14px !important;
+    transition: all .2s ease;
+    box-shadow: none !important;
+}
+
+/* QUITA SOMBRAS */
+.ct-login-input .mud-input-root,
+.ct-login-input .mud-input-slot,
+.ct-login-input .mud-input-outlined-border,
+.ct-login-input .mud-input {
+    box-shadow: none !important;
+}
+
+/* HOVER */
+.ct-login-input:hover .mud-input-slot {
+    background: rgba(255,255,255,0.72) !important;
+}
+
+/* FOCUS */
+.ct-login-input.mud-input-focused .mud-input-slot {
+    background: rgba(255,255,255,0.82) !important;
+}
+
+/* INPUT TEXTO */
+.ct-login-input input {
+    font-size: 15px !important;
+    color: #2f3437 !important;
+    background: transparent !important;
+    padding-top: 10px !important;
+    padding-bottom: 10px !important;
+}
+
+    /* PLACEHOLDER */
+    .ct-login-input input::placeholder {
+        color: #8b95a7 !important;
+        opacity: 1;
+    }
+
+/* LABEL */
+.ct-login-input .mud-input-label {
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+/* LABEL NORMAL */
+.ct-login-input .mud-input-label-inputcontrol {
+    color: #6b7280 !important;
+    font-size: 14px !important;
+    font-weight: 500;
+}
+
+/* LABEL EN FOCUS */
+.ct-login-input.mud-input-focused .mud-input-label-inputcontrol {
+    color: #5d74b3 !important;
+}
+
+/* BORDE */
+.ct-login-input .mud-input-outlined-border {
+    border-color: rgba(93, 116, 179, 0.28) !important;
+}
+
+.ct-login-input.mud-input-focused .mud-input-outlined-border {
+    border-color: #5d74b3 !important;
+    border-width: 2px !important;
+}
+
+/* ICONO PASSWORD */
+.ct-login-input .mud-input-adornment {
+    color: #6b7280 !important;
+}
+
+/* =========================================================
+   AUTOFILL CHROME
+========================================================= */
+
+.ct-login-input input:-webkit-autofill,
+.ct-login-input input:-webkit-autofill:hover,
+.ct-login-input input:-webkit-autofill:focus,
+.ct-login-input input:-webkit-autofill:active {
+    -webkit-text-fill-color: #2f3437 !important;
+    caret-color: #2f3437 !important;
+    transition: background-color 99999s ease-in-out 0s;
+    -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+    background: transparent !important;
+}
+
+/* =========================================================
+   RESPONSIVE LOGIN
+========================================================= */
+
 @media (max-width: 900px) {
+
     .ct-login-page {
-        grid-template-columns: 1fr;
-    }
-
-    .ct-login-right {
-        display: none;
-    }
-
-    .ct-login-left {
+        justify-content: center;
         padding: 24px;
+        background-position: center;
+    }
+
+    .ct-login-overlay {
+        background: rgba(238, 243, 247, 0.82);
     }
 
     .ct-login-card {
         padding: 48px 32px;
     }
+
+    .ct-footer {
+        font-size: 14px;
+    }
 }
 
+/* =========================================================
+   AVAILABILITY
+========================================================= */
+
 .ct-day-card {
-    min-height: 150px;
-    background: #f4f4f4;
+    min-height: 220px;
+    border: 1px solid #e5e7eb;
+    border-radius: 18px;
+    padding: 12px;
+    background: #ffffff;
 }
 
 .ct-slot {
@@ -184,14 +319,15 @@ html, body {
 }
 
 .ct-slot-selected {
-    background: #5b6fa6;
-    color: white;
+    background: #e3f2fd !important;
+    border: 2px solid var(--mud-palette-primary) !important;
 }
 
 .ct-slot-full {
     background: #d9d9d9;
     color: #777;
     cursor: not-allowed;
+    opacity: .55;
 }
 
 .ct-availability-panel {
@@ -205,14 +341,6 @@ html, body {
 
 .ct-availability-subtitle {
     color: #6b7280;
-}
-
-.ct-day-card {
-    min-height: 220px;
-    border: 1px solid #e5e7eb;
-    border-radius: 18px;
-    padding: 12px;
-    background: #ffffff;
 }
 
 .ct-day-header {
@@ -251,16 +379,6 @@ html, body {
         border-color: #90caf9 !important;
     }
 
-.ct-slot-selected {
-    background: #e3f2fd !important;
-    border: 2px solid var(--mud-palette-primary) !important;
-}
-
-.ct-slot-full {
-    opacity: .55;
-    cursor: not-allowed !important;
-}
-
 .ct-slot-content {
     width: 100%;
 }
@@ -287,6 +405,7 @@ html, body {
 }
 
 @media (max-width: 960px) {
+
     .ct-availability-header {
         flex-direction: column !important;
         align-items: flex-start !important;
@@ -297,6 +416,10 @@ html, body {
         min-height: auto;
     }
 }
+
+/* =========================================================
+   PASSENGER TYPES
+========================================================= */
 
 .ct-passenger-adult {
     background: #d1d1d1 !important;

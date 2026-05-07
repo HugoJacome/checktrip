@@ -10,7 +10,9 @@
 @inject ISnackbar Snackbar
 
 <div class="ct-login-page">
-    <div class="ct-login-left">
+    <div class="ct-login-overlay"></div>
+
+    <div class="ct-login-content">
         <div class="ct-login-card">
             <div class="ct-logo">
                 <span>CHECK</span><strong>TRIP</strong>
@@ -26,7 +28,8 @@
                     </MudText>
 
                     <MudTextField T="string"
-                                  Label="Usuario:"
+                                  @ref="_usernameField"
+                                  Label="Usuario"
                                   Variant="Variant.Outlined"
                                   Margin="Margin.Dense"
                                   @bind-Value="_model.Username"
@@ -34,10 +37,12 @@
                                   RequiredError="Ingrese el usuario"
                                   Immediate="true"
                                   Disabled="_loading"
-                                  AutoComplete="username" />
+                                  AutoFocus="true"
+                                  AutoComplete="username"
+                                  Class="ct-login-input" />
 
                     <MudTextField T="string"
-                                  Label="Contraseña:"
+                                  Label="Contraseña"
                                   Variant="Variant.Outlined"
                                   Margin="Margin.Dense"
                                   @bind-Value="_model.Password"
@@ -47,7 +52,8 @@
                                   Immediate="true"
                                   Disabled="_loading"
                                   OnKeyDown="HandleKeyDown"
-                                  AutoComplete="current-password" />
+                                  AutoComplete="current-password"
+                                  Class="ct-login-input" />
 
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
@@ -73,14 +79,22 @@
             Todos los derechos reservados / VASCONEZCORP 2026
         </div>
     </div>
-
-    <div class="ct-login-right"></div>
 </div>
 
 @code {
     private MudForm? _form;
+    private MudTextField<string>? _usernameField;
     private LoginModel _model = new();
     private bool _loading;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _usernameField is not null)
+        {
+            await Task.Delay(150);
+            await _usernameField.FocusAsync();
+        }
+    }
 
     private async Task DoLogin()
     {
