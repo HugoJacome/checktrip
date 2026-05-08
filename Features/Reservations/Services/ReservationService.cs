@@ -175,13 +175,21 @@ public class ReservationService
                     TripType = GetTripType(passenger),
                     PassengerType = passenger.PassengerType,
 
-                    OutboundRouteScheduleId = model.OutboundRouteScheduleId,
-                    OutboundTravelDate = model.OutboundDate.HasValue
+                    OutboundRouteScheduleId = passenger.Outbound
+                        ? model.OutboundRouteScheduleId
+                        : null,
+
+                    OutboundTravelDate = passenger.Outbound && model.OutboundDate.HasValue
                         ? DateOnly.FromDateTime(model.OutboundDate.Value)
                         : null,
 
-                    ReturnRouteScheduleId = null,
-                    ReturnTravelDate = null,
+                    ReturnRouteScheduleId = passenger.Return
+                        ? model.OutboundRouteScheduleId
+                        : null,
+
+                    ReturnTravelDate = passenger.Return && passenger.ReturnDate.HasValue
+                        ? DateOnly.FromDateTime(passenger.ReturnDate.Value)
+                        : null,
 
                     Status = "Reserved",
                     CreatedAt = DateTime.UtcNow
@@ -477,17 +485,21 @@ public class ReservationService
         {
             passenger.PassengerType = NormalizePassengerType(passenger.PassengerType);
 
-            if (passenger.BirthDate.HasValue)
-                passenger.Age = CalculateAge(passenger.BirthDate.Value);
+            if (!passenger.Age.HasValue || passenger.Age.Value < 0)
+                throw new Exception($"El pasajero {passenger.FullName} debe tener una edad válida.");
+
+            if (passenger.PassengerType == "Infant" && passenger.Age.Value > 1)
+                throw new Exception($"El pasajero {passenger.FullName} no puede ser infante porque tiene más de 1 año.");
+
+            if (passenger.Return && !passenger.ReturnDate.HasValue)
+                passenger.ReturnDate = model.OutboundDate;
 
             if (passenger.PassengerType == "Infant")
             {
-                if (!passenger.BirthDate.HasValue)
-                    throw new Exception($"El infante {passenger.FullName} debe tener fecha de nacimiento.");
+                if (!passenger.Age.HasValue)
+                    throw new Exception($"El infante {passenger.FullName} debe tener Edad.");
 
-                var months = GetAgeInMonths(passenger.BirthDate.Value);
-
-                if (months > 12)
+                if (passenger.Age > 1)
                     throw new Exception($"El pasajero {passenger.FullName} no puede ser infante porque tiene más de 1 año.");
             }
         }
@@ -504,9 +516,7 @@ public class ReservationService
 
         var customer = await _repo.GetCustomerByDocumentAsync(document);
 
-        var age = passenger.BirthDate.HasValue
-            ? CalculateAge(passenger.BirthDate.Value)
-            : passenger.Age;
+        var age = passenger.Age;
 
         if (customer is not null)
         {
@@ -525,7 +535,7 @@ public class ReservationService
             DocumentNumber = document,
             FullName = fullName,
             Nationality = passenger.Nationality,
-            BirthDate = NormalizeBirthDate(passenger.BirthDate),
+            BirthDate = null,
             Age = age,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -574,28 +584,6 @@ public class ReservationService
         };
     }
 
-    private static int CalculateAge(DateTime birthDate)
-    {
-        var today = DateTime.Today;
-        var age = today.Year - birthDate.Year;
-
-        if (birthDate.Date > today.AddYears(-age))
-            age--;
-
-        return age;
-    }
-
-    private static int GetAgeInMonths(DateTime birthDate)
-    {
-        var today = DateTime.Today;
-
-        var months = ((today.Year - birthDate.Year) * 12) + today.Month - birthDate.Month;
-
-        if (today.Day < birthDate.Day)
-            months--;
-
-        return months;
-    }
     public async Task<List<RouteListItem>> GetRoutesByBoatAsync(Guid boatId)
     {
         var routes = await _repo.GetRoutesByBoatAsync(boatId);
@@ -681,5 +669,24 @@ public class ReservationService
             return null;
 
         return DateTime.SpecifyKind(value.Value.Date, DateTimeKind.Unspecified);
+    }
+    public async Task<List<BoatListItem>> GetBoatsByRouteAsync(Guid routeId)
+    {
+        var boats = await _repo.GetBoatsByRouteAsync(routeId);
+
+        return boats
+            .GroupBy(x => x.Id)
+            .Select(x => x.First())
+            .Select(x => new BoatListItem
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
+            .OrderBy(x => x.Name)
+            .ToList();
+    }
+    public async Task<Customer?> GetCustomerByDocumentAsync(string documentNumber)
+    {
+        return await _repo.GetCustomerByDocumentAsync(documentNumber);
     }
 }

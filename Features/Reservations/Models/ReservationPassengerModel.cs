@@ -9,9 +9,13 @@ public class ReservationPassengerModel
     public DateTime? BirthDate { get; set; }
     public int? Age { get; set; }
 
-    public bool Outbound { get; set; } = true;
-    public bool Return { get; set; } = true;
-
     public string PassengerType { get; set; } = "Adult";
     // Adult, Infant, Courtesy
+    public bool Outbound { get; set; } = true;
+    public bool Return { get; set; } = true;
+    public DateTime? ReturnDate { get; set; }
+    public Guid? CustomerId { get; set; }
+    public bool IsNewCustomer { get; set; }
+    public bool CustomerChanged { get; set; }
+
 }

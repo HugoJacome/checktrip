@@ -13,6 +13,7 @@
 @inject BoatService BoatService
 @inject AgencyService AgencyService
 @inject SellerService SellerService
+@inject RouteService RouteService
 @inject IDialogService Dialog
 @inject INotificationService Notifications
 @inject NavigationManager Navigation
@@ -129,6 +130,18 @@
         margin-top: 4px;
     }
 
+    .ct-passenger-adult {
+        background-color: #f3f4f6;
+    }
+
+    .ct-passenger-infant {
+        background-color: #dcfce7;
+    }
+
+    .ct-passenger-courtesy {
+        background-color: #e0f2fe;
+    }
+
     @@media (max-width: 900px) {
         .ct-days-wrapper {
             justify-content: flex-start;
@@ -180,29 +193,29 @@
 
             <MudItem xs="12" md="3">
                 <MudSelect T="Guid?"
-                           Label="Lancha"
-                           Value="_boatId"
-                           ValueChanged="OnBoatChanged"
+                           Label="Ruta"
+                           Value="_routeId"
+                           ValueChanged="OnRouteChanged"
                            Clearable="true">
-                    @foreach (var b in _boats)
+                    @foreach (var r in _routes)
                     {
-                        <MudSelectItem T="Guid?" Value="@b.Id">@b.Name</MudSelectItem>
+                        <MudSelectItem T="Guid?" Value="@r.Id">
+                            @($"{r.Origin} - {r.Destination}")
+                        </MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
 
             <MudItem xs="12" md="3">
                 <MudSelect T="Guid?"
-                           Label="Ruta"
-                           Value="_routeId"
-                           ValueChanged="OnRouteChanged"
+                           Label="Lancha"
+                           Value="_boatId"
+                           ValueChanged="OnBoatChanged"
                            Clearable="true"
-                           Disabled="@(!_boatId.HasValue)">
-                    @foreach (var r in _routes)
+                           Disabled="@(!_routeId.HasValue)">
+                    @foreach (var b in _boats)
                     {
-                        <MudSelectItem T="Guid?" Value="@r.Id">
-                            @($"{r.Origin} - {r.Destination}")
-                        </MudSelectItem>
+                        <MudSelectItem T="Guid?" Value="@b.Id">@b.Name</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -256,16 +269,16 @@
             </MudStack>
         </MudStack>
 
-        @if (!_boatId.HasValue)
+        @if (!_routeId.HasValue)
         {
             <MudAlert Severity="Severity.Info" Class="mt-3">
-                Seleccione una lancha para cargar las rutas disponibles.
+                Seleccione una ruta para cargar las lanchas disponibles.
             </MudAlert>
         }
-        else if (!_routeId.HasValue)
+        else if (!_boatId.HasValue)
         {
             <MudAlert Severity="Severity.Info" Class="mt-3">
-                Seleccione una ruta para cargar la disponibilidad semanal.
+                Seleccione una lancha para cargar la disponibilidad semanal.
             </MudAlert>
         }
         else
@@ -293,7 +306,7 @@
                             {
                                 <MudButton FullWidth="true"
                                            Variant="Variant.Text"
-                                           Disabled="@item.IsFull"
+                                           Disabled="@(item.IsFull || item.TravelDate.Date < DateTime.Today)"
                                            Class="@GetAvailabilityClass(item)"
                                            OnClick="@(() => SelectTrip(item))">
                                     <div class="ct-slot-content">
@@ -365,10 +378,11 @@
                 <MudTh>Identificación</MudTh>
                 <MudTh>Nombres completos</MudTh>
                 <MudTh>Nacionalidad</MudTh>
-                <MudTh>Fecha nacimiento</MudTh>
+                <MudTh>Edad</MudTh>
                 <MudTh>Tipo pasajero</MudTh>
                 <MudTh>Ida</MudTh>
                 <MudTh>Regreso</MudTh>
+                <MudTh>Fecha retorno</MudTh>
                 <MudTh></MudTh>
             </HeaderContent>
 
@@ -376,15 +390,24 @@
                 <MudTd>@(_model.Passengers.IndexOf(context) + 1)</MudTd>
 
                 <MudTd>
-                    <MudTextField T="string" @bind-Value="context.DocumentNumber" Dense="true" />
+                    <MudTextField T="string"
+                                  Value="context.DocumentNumber"
+                                  ValueChanged="@((string value) => OnPassengerDocumentChangedAsync(context, value))"
+                                  Dense="true" />
                 </MudTd>
 
                 <MudTd>
-                    <MudTextField T="string" @bind-Value="context.FullName" Dense="true" />
+                    <MudTextField T="string"
+                                  Value="context.FullName"
+                                  ValueChanged="@((string value) => OnPassengerFullNameChanged(context, value))"
+                                  Dense="true" />
                 </MudTd>
 
                 <MudTd>
-                    <MudSelect T="string" @bind-Value="context.Nationality" Dense="true">
+                    <MudSelect T="string"
+                               Value="context.Nationality"
+                               ValueChanged="@((string value) => OnPassengerNationalityChanged(context, value))"
+                               Dense="true">
                         @foreach (var nationality in _nationalities)
                         {
                             <MudSelectItem Value="@nationality">@nationality</MudSelectItem>
@@ -393,16 +416,29 @@
                 </MudTd>
 
                 <MudTd>
-                    <MudDatePicker @bind-Date="context.BirthDate"
-                                   DateFormat="dd/MM/yyyy"
-                                   Dense="true" />
+                    <MudNumericField T="int?"
+                                     Value="context.Age"
+                                     ValueChanged="@((int? value) => OnPassengerAgeChanged(context, value))"
+                                     Dense="true"
+                                     Min="0"
+                                     Max="120" />
                 </MudTd>
 
                 <MudTd>
-                    <MudSelect T="string" @bind-Value="context.PassengerType" Dense="true">
-                        <MudSelectItem Value="@("Adult")">Adulto</MudSelectItem>
-                        <MudSelectItem Value="@("Infant")">Infante</MudSelectItem>
-                        <MudSelectItem Value="@("Courtesy")">Cortesía</MudSelectItem>
+                    <MudSelect T="string"
+                               Value="context.PassengerType"
+                               ValueChanged="@((string value) => OnPassengerTypeChanged(context, value))"
+                               Dense="true"
+                               Disabled="@(context.Age <= 1)">
+                        @if (context.Age <= 1)
+                        {
+                            <MudSelectItem Value="@("Infant")">Infante</MudSelectItem>
+                        }
+                        else
+                        {
+                            <MudSelectItem Value="@("Adult")">Adulto</MudSelectItem>
+                            <MudSelectItem Value="@("Courtesy")">Cortesía</MudSelectItem>
+                        }
                     </MudSelect>
                 </MudTd>
 
@@ -416,8 +452,16 @@
                 <MudTd>
                     <MudCheckBox T="bool"
                                  Value="context.Return"
-                                 ValueChanged="@((bool value) => context.Return = value)"
+                                 ValueChanged="@((bool value) => OnPassengerReturnChanged(context, value))"
                                  Dense="true" />
+                </MudTd>
+
+                <MudTd>
+                    <MudDatePicker Date="context.ReturnDate"
+                                   DateChanged="@((DateTime? value) => OnPassengerReturnDateChanged(context, value))"
+                                   DateFormat="dd/MM/yyyy"
+                                   Dense="true"
+                                   Disabled="@(!context.Return)" />
                 </MudTd>
 
                 <MudTd>
@@ -484,11 +528,12 @@
         !_model.Passengers.Any();
 
     private IEnumerable<DateTime> WeekDays =>
-        Enumerable.Range(0, 5).Select(x => _weekStart.AddDays(x));
+        Enumerable.Range(0, 7).Select(x => _weekStart.AddDays(x));
 
     protected override async Task OnInitializedAsync()
     {
-        _boats = await BoatService.GetAllAsync();
+        _routes = await RouteService.GetAllAsync();
+        _boats.Clear();
         _agencies = await AgencyService.GetAllAsync();
         _sellers = await SellerService.GetAllAsync();
 
@@ -498,24 +543,24 @@
     private async Task OnBoatChanged(Guid? value)
     {
         _boatId = value;
-        _routeId = null;
         _selectedTrip = null;
-        _routes.Clear();
         _weekly.Clear();
 
-        if (!_boatId.HasValue)
-            return;
-
-        _routes = await Service.GetRoutesByBoatAsync(_boatId.Value);
+        await LoadWeeklyAvailability();
     }
 
     private async Task OnRouteChanged(Guid? value)
     {
         _routeId = value;
+        _boatId = null;
         _selectedTrip = null;
+        _boats.Clear();
         _weekly.Clear();
 
-        await LoadWeeklyAvailability();
+        if (!_routeId.HasValue)
+            return;
+
+        _boats = await Service.GetBoatsByRouteAsync(_routeId.Value);
     }
 
     private async Task PreviousWeek()
@@ -574,6 +619,12 @@
 
     private void SelectTrip(WeeklyAvailabilityItem item)
     {
+        if (item.TravelDate.Date < DateTime.Today)
+        {
+            Notifications.Error("Solo puede registrar reservas desde el día actual en adelante.");
+            return;
+        }
+
         if (item.IsFull)
         {
             Notifications.Error("Este viaje no tiene cupos disponibles.");
@@ -583,7 +634,13 @@
         _selectedTrip = item;
 
         _model.OutboundRouteScheduleId = item.BoatRouteScheduleId;
-        _model.OutboundDate = item.TravelDate;
+        _model.OutboundDate = item.TravelDate.Date;
+
+        foreach (var passenger in _model.Passengers.Where(x => x.Return))
+        {
+            if (!passenger.ReturnDate.HasValue || passenger.ReturnDate.Value.Date < _model.OutboundDate.Value.Date)
+                passenger.ReturnDate = _model.OutboundDate.Value.Date;
+        }
 
         StateHasChanged();
     }
@@ -595,11 +652,22 @@
 
         if (!result.Canceled && result.Data is ReservationPassengerModel passenger)
         {
+            if (IsDuplicatedDocument(passenger.DocumentNumber, passenger))
+            {
+                Notifications.Error($"Ya existe un pasajero con la identificación {passenger.DocumentNumber}.");
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(passenger.Nationality))
                 passenger.Nationality = "Ecuatoriana";
 
-            if (string.IsNullOrWhiteSpace(passenger.PassengerType))
-                passenger.PassengerType = "Adult";
+            if (passenger.Return)
+                passenger.ReturnDate = _model.OutboundDate?.Date;
+
+            passenger.IsNewCustomer = !passenger.CustomerId.HasValue;
+            passenger.CustomerChanged = passenger.IsNewCustomer;
+
+            ApplyPassengerTypeByAge(passenger);
 
             _model.Passengers.Add(passenger);
             SyncPassengerCountersFromList();
@@ -610,6 +678,180 @@
     {
         _model.Passengers.Remove(passenger);
         SyncPassengerCountersFromList();
+    }
+
+    private async Task OnPassengerDocumentChangedAsync(
+        ReservationPassengerModel passenger,
+        string value)
+    {
+        var newDocument = value?.Trim() ?? string.Empty;
+        var oldDocument = passenger.DocumentNumber?.Trim() ?? string.Empty;
+
+        if (string.Equals(newDocument, oldDocument, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (IsDuplicatedDocument(newDocument, passenger))
+        {
+            Notifications.Error($"Ya existe un pasajero con la identificación {newDocument}.");
+            return;
+        }
+
+        passenger.DocumentNumber = newDocument;
+
+        if (string.IsNullOrWhiteSpace(newDocument))
+        {
+            ClearPassengerCustomerData(passenger);
+            SyncPassengerCountersFromList();
+            return;
+        }
+
+        var found = await Service.GetCustomerByDocumentAsync(newDocument);
+
+        if (found is null)
+        {
+            ClearPassengerCustomerData(passenger);
+            passenger.DocumentNumber = newDocument;
+            passenger.DocumentType = string.IsNullOrWhiteSpace(passenger.DocumentType)
+                ? "Cedula"
+                : passenger.DocumentType;
+
+            passenger.IsNewCustomer = true;
+            passenger.CustomerChanged = true;
+
+            SyncPassengerCountersFromList();
+            return;
+        }
+
+        passenger.CustomerId = found.Id;
+        passenger.DocumentType = found.DocumentType;
+        passenger.DocumentNumber = found.DocumentNumber;
+        passenger.FullName = found.FullName;
+        passenger.Nationality = string.IsNullOrWhiteSpace(found.Nationality)
+            ? "Ecuatoriana"
+            : found.Nationality;
+        passenger.Age = found.Age;
+
+        ApplyPassengerTypeByAge(passenger);
+        SyncPassengerCountersFromList();
+    }
+
+    private void OnPassengerAgeChanged(ReservationPassengerModel passenger, int? value)
+    {
+        passenger.Age = value;
+        passenger.CustomerChanged = true;
+
+        ApplyPassengerTypeByAge(passenger);
+        SyncPassengerCountersFromList();
+    }
+
+    private void OnPassengerTypeChanged(ReservationPassengerModel passenger, string value)
+    {
+        if (passenger.Age <= 1)
+        {
+            passenger.PassengerType = "Infant";
+            Notifications.Info("El tipo Infante se asigna automáticamente por edad.");
+            SyncPassengerCountersFromList();
+            return;
+        }
+
+        if (value != "Adult" && value != "Courtesy")
+        {
+            passenger.PassengerType = "Adult";
+            Notifications.Error("Solo puede seleccionar Adulto o Cortesía.");
+            SyncPassengerCountersFromList();
+            return;
+        }
+
+        passenger.PassengerType = value;
+        SyncPassengerCountersFromList();
+    }
+
+    private void OnPassengerFullNameChanged(ReservationPassengerModel passenger, string value)
+    {
+        passenger.FullName = value;
+        passenger.CustomerChanged = true;
+    }
+
+    private void OnPassengerNationalityChanged(ReservationPassengerModel passenger, string value)
+    {
+        passenger.Nationality = value;
+        passenger.CustomerChanged = true;
+    }
+
+    private void OnPassengerReturnChanged(ReservationPassengerModel passenger, bool value)
+    {
+        passenger.Return = value;
+
+        if (value)
+        {
+            if (_model.OutboundDate.HasValue)
+                passenger.ReturnDate = _model.OutboundDate.Value.Date;
+            else
+                passenger.ReturnDate = DateTime.Today;
+        }
+        else
+        {
+            passenger.ReturnDate = null;
+        }
+    }
+
+    private void OnPassengerReturnDateChanged(ReservationPassengerModel passenger, DateTime? value)
+    {
+        if (!passenger.Return)
+        {
+            passenger.ReturnDate = null;
+            return;
+        }
+
+        if (!_model.OutboundDate.HasValue)
+        {
+            Notifications.Error("Primero seleccione la fecha de ida.");
+            passenger.ReturnDate = null;
+            return;
+        }
+
+        if (value.HasValue && value.Value.Date < _model.OutboundDate.Value.Date)
+        {
+            Notifications.Error("La fecha de retorno no puede ser menor a la fecha de ida.");
+            passenger.ReturnDate = _model.OutboundDate.Value.Date;
+            return;
+        }
+
+        passenger.ReturnDate = value?.Date;
+    }
+
+    private void ApplyPassengerTypeByAge(ReservationPassengerModel passenger)
+    {
+        if (passenger.Age <= 1)
+        {
+            passenger.PassengerType = "Infant";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(passenger.PassengerType) || passenger.PassengerType == "Infant")
+            passenger.PassengerType = "Adult";
+    }
+
+    private bool IsDuplicatedDocument(string? documentNumber, ReservationPassengerModel current)
+    {
+        if (string.IsNullOrWhiteSpace(documentNumber))
+            return false;
+
+        return _model.Passengers.Any(x =>
+            !ReferenceEquals(x, current) &&
+            !string.IsNullOrWhiteSpace(x.DocumentNumber) &&
+            x.DocumentNumber.Trim().Equals(documentNumber.Trim(), StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void ClearPassengerCustomerData(ReservationPassengerModel passenger)
+    {
+        passenger.CustomerId = null;
+        passenger.FullName = string.Empty;
+        passenger.Nationality = "Ecuatoriana";
+        passenger.Age = null;
+        passenger.PassengerType = "Adult";
+        passenger.IsNewCustomer = true;
+        passenger.CustomerChanged = true;
     }
 
     private async Task LoadPassengersFromExcel(InputFileChangeEventArgs e)
@@ -639,11 +881,15 @@
             }
 
             await using var stream = file.OpenReadStream(maxSize);
+
             using var memoryStream = new MemoryStream();
+
             await stream.CopyToAsync(memoryStream);
+
             memoryStream.Position = 0;
 
             using var workbook = new XLWorkbook(memoryStream);
+
             var worksheet = workbook.Worksheets.FirstOrDefault();
 
             if (worksheet is null)
@@ -671,13 +917,25 @@
                 var documentNumber = GetCellText(worksheet, row, 2);
                 var fullName = GetCellText(worksheet, row, 3);
                 var nationality = GetCellText(worksheet, row, 4);
-                var birthDateText = GetCellText(worksheet, row, 5);
+                var ageText = GetCellText(worksheet, row, 5);
                 var passengerTypeText = GetCellText(worksheet, row, 6);
                 var outboundText = GetCellText(worksheet, row, 7);
                 var returnText = GetCellText(worksheet, row, 8);
+                var returnDateText = GetCellText(worksheet, row, 9);
 
-                if (IsEmptyRow(documentType, documentNumber, fullName, nationality, birthDateText, passengerTypeText, outboundText, returnText))
+                if (IsEmptyRow(
+                    documentType,
+                    documentNumber,
+                    fullName,
+                    nationality,
+                    ageText,
+                    passengerTypeText,
+                    outboundText,
+                    returnText,
+                    returnDateText))
+                {
                     continue;
+                }
 
                 if (string.IsNullOrWhiteSpace(documentType))
                     errors.Add($"Fila {row}: el tipo de documento es obligatorio.");
@@ -697,8 +955,11 @@
                 if (!_nationalities.Contains(nationality, StringComparer.OrdinalIgnoreCase))
                     errors.Add($"Fila {row}: la nacionalidad '{nationality}' no existe en el catálogo.");
 
-                if (!TryParseBirthDate(worksheet, row, 5, birthDateText, out var birthDate))
-                    errors.Add($"Fila {row}: la fecha de nacimiento no es válida. Use dd/MM/yyyy o yyyy-MM-dd.");
+                if (!int.TryParse(ageText, out var age))
+                    errors.Add($"Fila {row}: la edad debe ser numérica.");
+
+                if (age < 0 || age > 120)
+                    errors.Add($"Fila {row}: la edad no es válida.");
 
                 if (!TryMapPassengerType(passengerTypeText, out var passengerType))
                     errors.Add($"Fila {row}: el tipo de pasajero debe ser Adulto, Infante o Cortesía.");
@@ -709,19 +970,53 @@
                 if (!TryParseBit(returnText, out var passengerReturn))
                     errors.Add($"Fila {row}: el campo Viaja regreso debe ser 1 o 0.");
 
+                DateTime? returnDate = null;
+
+                if (passengerReturn)
+                {
+                    if (!string.IsNullOrWhiteSpace(returnDateText))
+                    {
+                        if (!TryParseDate(worksheet, row, 9, returnDateText, out returnDate))
+                            errors.Add($"Fila {row}: la fecha de retorno no es válida.");
+                    }
+                    else
+                    {
+                        returnDate = _model.OutboundDate?.Date;
+                    }
+
+                    if (_model.OutboundDate.HasValue &&
+                        returnDate.HasValue &&
+                        returnDate.Value.Date < _model.OutboundDate.Value.Date)
+                    {
+                        errors.Add($"Fila {row}: la fecha de retorno no puede ser menor a la fecha de ida.");
+                    }
+                }
+
+                if (age <= 1)
+                {
+                    passengerType = "Infant";
+                }
+                else if (passengerType == "Infant")
+                {
+                    passengerType = "Adult";
+                }
+
                 if (errors.Any(x => x.StartsWith($"Fila {row}:")))
                     continue;
 
                 passengers.Add(new ReservationPassengerModel
                 {
-
+                    DocumentType = normalizedDocumentType,
                     DocumentNumber = documentNumber.Trim(),
                     FullName = fullName.Trim(),
                     Nationality = NormalizeNationality(nationality),
-                    BirthDate = birthDate,
+                    Age = age,
                     PassengerType = passengerType,
                     Outbound = outbound,
-                    Return = passengerReturn
+                    Return = passengerReturn,
+                    ReturnDate = passengerReturn ? returnDate : null,
+                    IsNewCustomer = true,
+                    CustomerChanged = true
                 });
             }
 
@@ -771,9 +1066,11 @@
             }
 
             _model.Passengers.AddRange(passengers);
+
             SyncPassengerCountersFromList();
 
             Notifications.Success($"Se cargaron {passengers.Count} pasajeros correctamente.");
+
             StateHasChanged();
         }
         catch (Exception ex)
@@ -786,15 +1083,16 @@
     {
         var expectedHeaders = new[]
         {
-        "Tipo de documento",
-        "Número de documento",
-        "Nombres y apellidos",
-        "Nacionalidad",
-        "Fecha de nacimiento",
-        "Tipo de pasajero",
-        "Viaja ida (1/0)",
-        "Viaja regreso (1/0)"
-    };
+            "Tipo de documento",
+            "Número de documento",
+            "Nombres y apellidos",
+            "Nacionalidad",
+            "Edad",
+            "Tipo de pasajero",
+            "Viaja ida (1/0)",
+            "Viaja regreso (1/0)",
+            "Fecha retorno"
+        };
 
         for (var col = 1; col <= expectedHeaders.Length; col++)
         {
@@ -817,30 +1115,30 @@
         return values.All(string.IsNullOrWhiteSpace);
     }
 
-    private static bool TryParseBirthDate(
-       IXLWorksheet worksheet,
-       int row,
-       int column,
-       string value,
-       out DateTime? birthDate)
+    private static bool TryParseDate(
+        IXLWorksheet worksheet,
+        int row,
+        int column,
+        string value,
+        out DateTime? date)
     {
-        birthDate = null;
+        date = null;
 
         var cell = worksheet.Cell(row, column);
 
         if (cell.DataType == XLDataType.DateTime)
         {
-            birthDate = cell.GetDateTime();
+            date = cell.GetDateTime().Date;
             return true;
         }
 
         var formats = new[]
         {
-        "dd/MM/yyyy",
-        "yyyy-MM-dd",
-        "d/M/yyyy",
-        "dd-MM-yyyy"
-    };
+            "dd/MM/yyyy",
+            "yyyy-MM-dd",
+            "d/M/yyyy",
+            "dd-MM-yyyy"
+        };
 
         if (DateTime.TryParseExact(
                 value,
@@ -849,7 +1147,13 @@
                 DateTimeStyles.None,
                 out var parsed))
         {
-            birthDate = parsed;
+            date = parsed.Date;
+            return true;
+        }
+
+        if (DateTime.TryParse(value, out parsed))
+        {
+            date = parsed.Date;
             return true;
         }
 
@@ -862,13 +1166,18 @@
 
         value = value.Trim();
 
-        if (value == "1" || value.Equals("true", StringComparison.OrdinalIgnoreCase) || value.Equals("sí", StringComparison.OrdinalIgnoreCase) || value.Equals("si", StringComparison.OrdinalIgnoreCase))
+        if (value == "1" ||
+            value.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("sí", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("si", StringComparison.OrdinalIgnoreCase))
         {
             result = true;
             return true;
         }
 
-        if (value == "0" || value.Equals("false", StringComparison.OrdinalIgnoreCase) || value.Equals("no", StringComparison.OrdinalIgnoreCase))
+        if (value == "0" ||
+            value.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+            value.Equals("no", StringComparison.OrdinalIgnoreCase))
         {
             result = false;
             return true;
@@ -886,8 +1195,11 @@
         passengerType = normalized switch
         {
             "adulto" => "Adult",
+            "adult" => "Adult",
             "infante" => "Infant",
+            "infant" => "Infant",
             "cortesia" => "Courtesy",
+            "courtesy" => "Courtesy",
             _ => string.Empty
         };
 
@@ -918,6 +1230,7 @@
         {
             _saving = true;
 
+            ValidatePassengersBeforeSave();
             ValidatePassengerQuantities();
 
             var reservationId = await Service.CreateAsync(_model);
@@ -961,6 +1274,64 @@
         finally
         {
             _saving = false;
+        }
+    }
+
+    private void ValidatePassengersBeforeSave()
+    {
+        if (!_model.OutboundDate.HasValue)
+            throw new Exception("Debe seleccionar la fecha de ida.");
+
+        if (_model.OutboundDate.Value.Date < DateTime.Today)
+            throw new Exception("Solo puede registrar reservas desde el día actual en adelante.");
+        var duplicates = _model.Passengers
+            .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
+            .GroupBy(x => x.DocumentNumber.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(x => x.Count() > 1)
+            .Select(x => x.Key)
+            .ToList();
+
+        if (duplicates.Any())
+            throw new Exception($"Existen pasajeros duplicados: {string.Join(", ", duplicates)}.");
+
+        foreach (var passenger in _model.Passengers)
+        {
+            if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+                throw new Exception("Todos los pasajeros deben tener identificación.");
+
+            if (string.IsNullOrWhiteSpace(passenger.FullName))
+                throw new Exception($"El pasajero {passenger.DocumentNumber} debe tener nombre completo.");
+
+            if (string.IsNullOrWhiteSpace(passenger.Nationality))
+                throw new Exception($"El pasajero {passenger.DocumentNumber} debe tener nacionalidad.");
+
+            if (passenger.Age is null || passenger.Age < 0 || passenger.Age > 120)
+                throw new Exception($"El pasajero {passenger.DocumentNumber} tiene una edad no válida.");
+
+            if (passenger.Age <= 1 && passenger.PassengerType != "Infant")
+                throw new Exception($"El pasajero {passenger.DocumentNumber} debe ser Infante por su edad.");
+
+            if (passenger.Age > 1 && passenger.PassengerType == "Infant")
+                throw new Exception($"El pasajero {passenger.DocumentNumber} no puede ser Infante si tiene más de 1 año.");
+
+            if (passenger.Age > 1 &&
+                passenger.PassengerType != "Adult" &&
+                passenger.PassengerType != "Courtesy")
+            {
+                throw new Exception($"El pasajero {passenger.DocumentNumber} solo puede ser Adulto o Cortesía.");
+            }
+
+            if (passenger.Return)
+            {
+                if (!passenger.ReturnDate.HasValue)
+                    throw new Exception($"El pasajero {passenger.DocumentNumber} debe tener fecha de retorno.");
+
+                if (_model.OutboundDate.HasValue &&
+                    passenger.ReturnDate.Value.Date < _model.OutboundDate.Value.Date)
+                {
+                    throw new Exception($"La fecha de retorno de {passenger.DocumentNumber} no puede ser menor a la fecha de ida.");
+                }
+            }
         }
     }
 
@@ -1033,6 +1404,7 @@
             _ => string.Empty
         };
     }
+
     private static bool TryMapDocumentType(string value, out string documentType)
     {
         documentType = string.Empty;
@@ -1042,18 +1414,21 @@
         documentType = normalized switch
         {
             "cedula" => "Cedula",
+            "cedula de identidad" => "Cedula",
             "pasaporte" => "Pasaporte",
             _ => string.Empty
         };
 
         return !string.IsNullOrWhiteSpace(documentType);
     }
+
     private void SyncPassengerCountersFromList()
     {
         _adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
         _infantCount = _model.Passengers.Count(x => x.PassengerType == "Infant");
         _courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
     }
+
     private string GetPassengerRowClass(ReservationPassengerModel passenger, int rowNumber)
     {
         return passenger.PassengerType switch
@@ -1073,7 +1448,7 @@
         _routeId = null;
         _selectedTrip = null;
 
-        _routes.Clear();
+        _boats.Clear();
         _weekly.Clear();
 
         _adultCount = 0;

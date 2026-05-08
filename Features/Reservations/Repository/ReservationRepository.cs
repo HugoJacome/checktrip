@@ -219,4 +219,23 @@ public class ReservationRepository : BaseRepository<Reservation>
             .OrderBy(x => x.Schedule.Name)
             .ToListAsync();
     }
+    public async Task<List<Boat>> GetBoatsByRouteAsync(Guid routeId)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatRouteSchedules
+            .AsNoTracking()
+            .Include(x => x.Boat)
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.IsActive &&
+                x.RouteId == routeId &&
+                x.Boat != null)
+            .Select(x => x.Boat)
+            .Distinct()
+            .OrderBy(x => x.Name)
+            .ToListAsync();
+    }
 }
