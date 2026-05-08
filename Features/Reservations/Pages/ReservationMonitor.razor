@@ -1,4 +1,5 @@
 ﻿@page "/reservations/monitor"
+@inject NavigationManager Navigation
 
 @using CheckAccess.Features.Tickets.Pages
 @using CheckTrip.Web.Features.Reservations.Models
@@ -60,8 +61,6 @@
                 <MudTh>Fecha</MudTh>
                 <MudTh>Agencia</MudTh>
                 <MudTh>Vendedor</MudTh>
-                <MudTh>Contacto</MudTh>
-                <MudTh>Estado</MudTh>
                 <MudTh>Pago</MudTh>
                 <MudTh>Pasajeros</MudTh>
                 <MudTh>Acciones</MudTh>
@@ -72,15 +71,6 @@
                 <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
                 <MudTd>@context.Agency</MudTd>
                 <MudTd>@context.Seller</MudTd>
-                <MudTd>
-                    <MudText Typo="Typo.body2">@context.ContactName</MudText>
-                    <MudText Typo="Typo.caption">@context.ContactPhone</MudText>
-                </MudTd>
-                <MudTd>
-                    <MudChip T="string" Color="@GetStatusColor(context.Status)">
-                        @context.Status
-                    </MudChip>
-                </MudTd>
                 <MudTd>
                     <MudSelect T="string"
                                Dense="true"
@@ -97,14 +87,6 @@
                                Variant="Variant.Text"
                                OnClick="@(() => Detail(context.Id))">
                         Ver
-                    </MudButton>
-
-                    <MudButton Size="Size.Small"
-                               Color="Color.Success"
-                               Variant="Variant.Text"
-                               Disabled="@(context.Status == "Finished" || context.Status == "Cancelled")"
-                               OnClick="@(() => Finish(context.Id))">
-                        Finalizar
                     </MudButton>
 
                     <MudButton Size="Size.Small"
@@ -157,14 +139,13 @@
             .ToList();
     }
 
-    private async Task Detail(Guid id)
+    private void Detail(Guid id)
     {
-        var parameters = new DialogParameters
-        {
-            ["ReservationId"] = id
-        };
+        var returnUrl =
+            $"/reservations/monitor?from={_dateFrom:yyyy-MM-dd}&to={_dateTo:yyyy-MM-dd}&status={_status}&payment={_paymentStatus}";
 
-        await Dialog.ShowAsync<ReservationDetailDialog>("Detalle de Reserva", parameters);
+        Navigation.NavigateTo(
+            $"/reservations/create/{id}?returnUrl={Uri.EscapeDataString(returnUrl)}");
     }
 
     private async Task ChangePayment(Guid id, string value)

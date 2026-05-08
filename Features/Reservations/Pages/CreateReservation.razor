@@ -1,4 +1,5 @@
 ﻿@page "/reservations/create"
+@page "/reservations/create/{ReservationId:guid}"
 
 @using CheckAccess.Features.Reservations.Dialog
 @using CheckTrip.Web.Features.Reservations.Models
@@ -155,7 +156,11 @@
 
 <MudStack Spacing="3">
 
-    <MudText Typo="Typo.h5">Nueva reserva</MudText>
+    <MudText Typo="Typo.h5">@PageTitle</MudText>
+    <MudButton Variant="Variant.Outlined"
+               OnClick="GoBack">
+        Atrás
+    </MudButton>
     <MudText Typo="Typo.body2">
         Seleccione la lancha, la ruta disponible, cargue los pasajeros y confirme la reserva.
     </MudText>
@@ -467,7 +472,12 @@
                 <MudTd>
                     <MudIconButton Icon="@Icons.Material.Filled.Delete"
                                    Color="Color.Error"
+                                   Disabled="@context.IsCancelled"
                                    OnClick="@(() => RemovePassenger(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.SwapHoriz"
+                                   Color="Color.Primary"
+                                   Disabled="@(!IsEditMode || context.IsCancelled)"
+                                   OnClick="@(() => ReplacePassenger(context))" />
                 </MudTd>
             </RowTemplate>
 
@@ -488,6 +498,12 @@
 </MudStack>
 
 @code {
+
+    [Parameter] public Guid? ReservationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
     private CreateReservationModel _model = new();
 
     private List<BoatListItem> _boats = [];
@@ -527,17 +543,22 @@
         _selectedTrip is null ||
         !_model.Passengers.Any();
 
+    private bool IsEditMode => ReservationId.HasValue;
+    private string PageTitle => IsEditMode ? "Editar reserva" : "Nueva reserva";
+
     private IEnumerable<DateTime> WeekDays =>
         Enumerable.Range(0, 7).Select(x => _weekStart.AddDays(x));
 
     protected override async Task OnInitializedAsync()
     {
         _routes = await RouteService.GetAllAsync();
-        _boats.Clear();
         _agencies = await AgencyService.GetAllAsync();
         _sellers = await SellerService.GetAllAsync();
 
-        _weekly.Clear();
+        if (ReservationId.HasValue)
+            await LoadReservationForEdit(ReservationId.Value);
+        else
+            _weekly.Clear();
     }
 
     private async Task OnBoatChanged(Guid? value)
@@ -547,6 +568,42 @@
         _weekly.Clear();
 
         await LoadWeeklyAvailability();
+    }
+    private async Task LoadReservationForEdit(Guid reservationId)
+    {
+        var edit = await Service.GetForEditAsync(reservationId);
+
+        if (edit is null)
+        {
+            Notifications.Error("Reserva no encontrada.");
+            Navigation.NavigateTo("/reservations/monitor");
+            return;
+        }
+
+        _model = edit;
+
+        var firstScheduleId = _model.OutboundRouteScheduleId;
+
+        if (firstScheduleId.HasValue)
+        {
+            var schedule = await Service.GetRouteScheduleInfoAsync(firstScheduleId.Value);
+
+            _routeId = schedule.RouteId;
+            _boatId = schedule.BoatId;
+
+            _boats = await Service.GetBoatsByRouteAsync(_routeId.Value);
+
+            if (_model.OutboundDate.HasValue)
+                _weekStart = GetStartOfWeek(_model.OutboundDate.Value);
+
+            await LoadWeeklyAvailability();
+
+            _selectedTrip = _weekly.FirstOrDefault(x =>
+                x.BoatRouteScheduleId == firstScheduleId.Value &&
+                x.TravelDate.Date == _model.OutboundDate!.Value.Date);
+        }
+
+        SyncPassengerCountersFromList();
     }
 
     private async Task OnRouteChanged(Guid? value)
@@ -674,9 +731,23 @@
         }
     }
 
-    private void RemovePassenger(ReservationPassengerModel passenger)
+    private async Task RemovePassenger(ReservationPassengerModel passenger)
     {
-        _model.Passengers.Remove(passenger);
+        if (IsEditMode && passenger.ReservationItemId.HasValue)
+        {
+            await Service.CancelPassengerAsync(
+                ReservationId!.Value,
+                passenger.ReservationItemId.Value,
+                "Cancelado desde edición de reserva");
+
+            passenger.IsCancelled = true;
+            Notifications.Success("Pasajero cancelado.");
+        }
+        else
+        {
+            _model.Passengers.Remove(passenger);
+        }
+
         SyncPassengerCountersFromList();
     }
 
@@ -1233,43 +1304,30 @@
             ValidatePassengersBeforeSave();
             ValidatePassengerQuantities();
 
-            var reservationId = await Service.CreateAsync(_model);
+            Guid reservationId;
 
-            var parameters = new DialogParameters
+            if (IsEditMode && ReservationId.HasValue)
             {
-                ["Success"] = true,
-                ["Title"] = "Reserva guardada",
-                ["Message"] = "La reserva se guardó correctamente.",
-                ["ReservationId"] = reservationId
-            };
-
-            var dialog = await Dialog.ShowAsync<ReservationResultDialog>(
-                "Resultado de la reserva",
-                parameters);
-
-            var result = await dialog.Result;
-
-            if (!result.Canceled && result.Data is string action)
-            {
-                if (action == "New")
-                    ResetForm();
-
-                if (action == "Finish")
-                    Navigation.NavigateTo("/");
+                await Service.UpdateAsync(ReservationId.Value, _model);
+                reservationId = ReservationId.Value;
             }
+            else
+            {
+                reservationId = await Service.CreateAsync(_model);
+            }
+
+            Notifications.Success(IsEditMode
+                ? "Reserva actualizada correctamente."
+                : "Reserva guardada correctamente.");
+
+            if (IsEditMode)
+                GoBack();
+            else
+                ResetForm();
         }
         catch (Exception ex)
         {
-            var parameters = new DialogParameters
-            {
-                ["Success"] = false,
-                ["Title"] = "No se pudo guardar",
-                ["Message"] = ex.Message
-            };
-
-            await Dialog.ShowAsync<ReservationResultDialog>(
-                "Resultado de la reserva",
-                parameters);
+            Notifications.Error(ex.Message);
         }
         finally
         {
@@ -1439,6 +1497,44 @@
             _ => string.Empty
         };
     }
+    private async Task ReplacePassenger(ReservationPassengerModel current)
+    {
+        var dialog = await Dialog.ShowAsync<CustomerSearchDialog>("Reemplazar pasajero");
+        var result = await dialog.Result;
+
+        if (result.Canceled || result.Data is not ReservationPassengerModel replacement)
+            return;
+
+        if (IsDuplicatedDocument(replacement.DocumentNumber, current))
+        {
+            Notifications.Error($"Ya existe un pasajero con la identificación {replacement.DocumentNumber}.");
+            return;
+        }
+
+        current.CustomerId = replacement.CustomerId;
+        current.DocumentType = replacement.DocumentType;
+        current.DocumentNumber = replacement.DocumentNumber;
+        current.FullName = replacement.FullName;
+        current.Nationality = replacement.Nationality;
+        current.Age = replacement.Age;
+        current.PassengerType = replacement.PassengerType;
+        current.IsNewCustomer = !replacement.CustomerId.HasValue;
+        current.CustomerChanged = true;
+
+        ApplyPassengerTypeByAge(current);
+
+        if (IsEditMode && current.ReservationItemId.HasValue)
+        {
+            await Service.ReplacePassengerAsync(
+                ReservationId!.Value,
+                current.ReservationItemId.Value,
+                current);
+
+            Notifications.Success("Pasajero reemplazado.");
+        }
+
+        SyncPassengerCountersFromList();
+    }
 
     private void ResetForm()
     {
@@ -1456,5 +1552,12 @@
         _courtesyCount = 0;
 
         StateHasChanged();
+    }
+    
+    private void GoBack()
+    {
+        Navigation.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl)
+            ? "/reservations/monitor"
+            : ReturnUrl);
     }
 }

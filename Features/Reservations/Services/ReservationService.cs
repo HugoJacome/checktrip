@@ -1,4 +1,5 @@
-﻿using CheckAccess.Infrastructure.Auth;
+﻿using CheckAccess.Features.Reservations.Models;
+using CheckAccess.Infrastructure.Auth;
 using CheckTrip.Web.Data;
 using CheckTrip.Web.Data.Entities;
 using CheckTrip.Web.Features.Reservations.Models;
@@ -688,5 +689,186 @@ public class ReservationService
     public async Task<Customer?> GetCustomerByDocumentAsync(string documentNumber)
     {
         return await _repo.GetCustomerByDocumentAsync(documentNumber);
+    }
+    public async Task<RouteScheduleInfoModel> GetRouteScheduleInfoAsync(Guid routeScheduleId)
+    {
+        var schedule = await _repo.GetRouteScheduleAsync(routeScheduleId);
+
+        if (schedule is null)
+            throw new Exception("Horario de viaje no encontrado.");
+
+        return new RouteScheduleInfoModel
+        {
+            BoatId = schedule.BoatId,
+            RouteId = schedule.RouteId
+        };
+    }
+    public async Task<CreateReservationModel?> GetForEditAsync(Guid reservationId)
+    {
+        var reservation = await _repo.GetDetailAsync(reservationId);
+
+        if (reservation is null)
+            return null;
+
+        var firstItem = reservation.Items.FirstOrDefault(x => x.Status != "Cancelled");
+
+        return new CreateReservationModel
+        {
+            ExternalReference = reservation.ExternalReference,
+            AgencyId = reservation.AgencyId,
+            SellerId = reservation.SellerId,
+            ContactName = reservation.ContactName,
+            ContactPhone = reservation.ContactPhone,
+            PaymentStatus = reservation.PaymentStatus,
+            Notes = reservation.Notes,
+            OutboundRouteScheduleId = firstItem?.OutboundRouteScheduleId,
+            OutboundDate = firstItem?.OutboundTravelDate?.ToDateTime(TimeOnly.MinValue),
+
+            Passengers = reservation.Items.Select(x => new ReservationPassengerModel
+            {
+                ReservationItemId = x.Id,
+                CustomerId = x.CustomerId,
+                DocumentType = x.Customer.DocumentType,
+                DocumentNumber = x.Customer.DocumentNumber,
+                FullName = x.Customer.FullName,
+                Nationality = x.Customer.Nationality,
+                Age = x.Customer.Age,
+                PassengerType = x.PassengerType,
+                Outbound = x.OutboundRouteScheduleId.HasValue,
+                Return = x.ReturnRouteScheduleId.HasValue,
+                ReturnDate = x.ReturnTravelDate?.ToDateTime(TimeOnly.MinValue),
+                IsCancelled = x.Status == "Cancelled"
+            }).ToList()
+        };
+    }
+    public async Task CancelPassengerAsync(Guid reservationId, Guid itemId, string? reason)
+    {
+        var reservation = await _repo.GetFullAsync(reservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        var item = reservation.Items.FirstOrDefault(x => x.Id == itemId);
+
+        if (item is null)
+            throw new Exception("Pasajero no encontrado.");
+
+        item.Status = "Cancelled";
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        if (reservation.Items.All(x => x.Status == "Cancelled"))
+            reservation.Status = "Cancelled";
+
+        _db.ReservationHistory.Add(new ReservationHistory
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            Action = "CancelPassenger",
+            Reason = reason,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+    }
+    public async Task ReplacePassengerAsync(
+    Guid reservationId,
+    Guid itemId,
+    ReservationPassengerModel passenger)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        var reservation = await _repo.GetFullAsync(reservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        var item = reservation.Items.FirstOrDefault(x => x.Id == itemId);
+
+        if (item is null)
+            throw new Exception("Pasajero no encontrado.");
+
+        var customer = await GetOrCreateCustomerAsync(passenger, tenantId);
+
+        item.CustomerId = customer.Id;
+        item.PassengerType = NormalizePassengerType(passenger.PassengerType);
+        item.TripType = GetTripType(passenger);
+
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        _db.ReservationHistory.Add(new ReservationHistory
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            Action = "ReplacePassenger",
+            Reason = $"Pasajero reemplazado en item {itemId}",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+    }
+    public async Task UpdateAsync(Guid reservationId, CreateReservationModel model)
+    {
+        await ValidateAsync(model);
+
+        var tenantId = _tenant.GetTenantId();
+
+        var reservation = await _repo.GetFullAsync(reservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        reservation.ExternalReference = model.ExternalReference;
+        reservation.AgencyId = model.AgencyId;
+        reservation.SellerId = model.SellerId;
+        reservation.ContactName = model.ContactName;
+        reservation.ContactPhone = model.ContactPhone;
+        reservation.PaymentStatus = model.PaymentStatus;
+        reservation.Notes = model.Notes;
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        foreach (var passenger in model.Passengers.Where(x => !x.IsCancelled))
+        {
+            var customer = await GetOrCreateCustomerAsync(passenger, tenantId);
+
+            if (passenger.ReservationItemId.HasValue)
+            {
+                var item = reservation.Items.First(x => x.Id == passenger.ReservationItemId.Value);
+
+                item.CustomerId = customer.Id;
+                item.PassengerType = NormalizePassengerType(passenger.PassengerType);
+                item.TripType = GetTripType(passenger);
+                item.OutboundRouteScheduleId = passenger.Outbound ? model.OutboundRouteScheduleId : null;
+                item.OutboundTravelDate = passenger.Outbound && model.OutboundDate.HasValue
+                    ? DateOnly.FromDateTime(model.OutboundDate.Value)
+                    : null;
+                item.ReturnRouteScheduleId = passenger.Return ? model.OutboundRouteScheduleId : null;
+                item.ReturnTravelDate = passenger.Return && passenger.ReturnDate.HasValue
+                    ? DateOnly.FromDateTime(passenger.ReturnDate.Value)
+                    : null;
+            }
+            else
+            {
+                reservation.Items.Add(new ReservationItem
+                {
+                    TenantId = tenantId,
+                    ReservationId = reservation.Id,
+                    CustomerId = customer.Id,
+                    PassengerType = NormalizePassengerType(passenger.PassengerType),
+                    TripType = GetTripType(passenger),
+                    OutboundRouteScheduleId = passenger.Outbound ? model.OutboundRouteScheduleId : null,
+                    OutboundTravelDate = passenger.Outbound && model.OutboundDate.HasValue
+                        ? DateOnly.FromDateTime(model.OutboundDate.Value)
+                        : null,
+                    ReturnRouteScheduleId = passenger.Return ? model.OutboundRouteScheduleId : null,
+                    ReturnTravelDate = passenger.Return && passenger.ReturnDate.HasValue
+                        ? DateOnly.FromDateTime(passenger.ReturnDate.Value)
+                        : null,
+                    Status = "Reserved",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync();
     }
 }

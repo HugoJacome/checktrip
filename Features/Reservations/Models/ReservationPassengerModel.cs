@@ -17,5 +17,7 @@ public class ReservationPassengerModel
     public Guid? CustomerId { get; set; }
     public bool IsNewCustomer { get; set; }
     public bool CustomerChanged { get; set; }
+    public Guid? ReservationItemId { get; set; }
+    public bool IsCancelled { get; set; }
 
 }
