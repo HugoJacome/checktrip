@@ -39,6 +39,16 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                {
+                    property.SetColumnType("timestamp with time zone");
+                }
+            }
+        }
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -106,9 +116,6 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<Customer>(entity =>
         {
-            entity.Property(x => x.BirthDate)
-                .HasColumnType("timestamp without time zone");
-
             entity.Property(x => x.CreatedAt)
                 .HasColumnType("timestamp with time zone");
         });
@@ -135,5 +142,55 @@ public class AppDbContext : DbContext
         });
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+    }
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        NormalizeDateTimesToUtc();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    public override int SaveChanges()
+    {
+        NormalizeDateTimesToUtc();
+        return base.SaveChanges();
+    }
+
+    private void NormalizeDateTimesToUtc()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State != EntityState.Added && entry.State != EntityState.Modified)
+                continue;
+
+            foreach (var property in entry.Properties)
+            {
+                if (property.Metadata.ClrType == typeof(DateTime))
+                {
+                    var value = (DateTime)property.CurrentValue!;
+
+                    property.CurrentValue = value.Kind switch
+                    {
+                        DateTimeKind.Utc => value,
+                        DateTimeKind.Local => value.ToUniversalTime(),
+                        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+                    };
+                }
+
+                if (property.Metadata.ClrType == typeof(DateTime?))
+                {
+                    var value = (DateTime?)property.CurrentValue;
+
+                    if (value.HasValue)
+                    {
+                        property.CurrentValue = value.Value.Kind switch
+                        {
+                            DateTimeKind.Utc => value.Value,
+                            DateTimeKind.Local => value.Value.ToUniversalTime(),
+                            _ => DateTime.SpecifyKind(value.Value, DateTimeKind.Utc)
+                        };
+                    }
+                }
+            }
+        }
     }
 }

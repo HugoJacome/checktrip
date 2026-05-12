@@ -524,7 +524,6 @@ public class ReservationService
             customer.DocumentType = passenger.DocumentType;
             customer.FullName = fullName;
             customer.Nationality = passenger.Nationality; 
-            customer.BirthDate = NormalizeBirthDate(passenger.BirthDate);
             customer.Age = age;
             return customer;
         }
@@ -536,7 +535,6 @@ public class ReservationService
             DocumentNumber = document,
             FullName = fullName,
             Nationality = passenger.Nationality,
-            BirthDate = null,
             Age = age,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
@@ -664,13 +662,7 @@ public class ReservationService
             .ThenBy(x => x.Schedule)
             .ToList();
     }
-    private static DateTime? NormalizeBirthDate(DateTime? value)
-    {
-        if (!value.HasValue)
-            return null;
 
-        return DateTime.SpecifyKind(value.Value.Date, DateTimeKind.Unspecified);
-    }
     public async Task<List<BoatListItem>> GetBoatsByRouteAsync(Guid routeId)
     {
         var boats = await _repo.GetBoatsByRouteAsync(routeId);
