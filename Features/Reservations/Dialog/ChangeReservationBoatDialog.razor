@@ -1,0 +1,106 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject ReservationService ReservationService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.subtitle1">
+                Selecciona la nueva embarcación, ruta y horario.
+            </MudText>
+
+            <MudSelect T="Guid"
+                       Label="Nuevo viaje"
+                       @bind-Value="_model.NewBoatRouteScheduleId"
+                       Required="true">
+                @foreach (var item in _routeSchedules)
+                {
+                    <MudSelectItem Value="@item.Id">
+                        @item.DisplayName
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudStack Row="true">
+                <MudCheckBox T="bool"
+                             Label="Aplicar a ida"
+                             @bind-Checked="_model.ApplyToOutbound" />
+
+                <MudCheckBox T="bool"
+                             Label="Aplicar a retorno"
+                             @bind-Checked="_model.ApplyToReturn" />
+            </MudStack>
+
+            <MudTextField Label="Motivo"
+                          Lines="3"
+                          @bind-Value="_model.Reason"
+                          Required="true" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid ReservationId { get; set; }
+
+    private bool _saving;
+    private List<RouteScheduleCatalogItem> _routeSchedules = [];
+
+    private ChangeReservationBoatModel _model = new()
+    {
+        ApplyToOutbound = true,
+        ApplyToReturn = true
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model.ReservationId = ReservationId;
+        _routeSchedules = await ReservationService.GetOperationRouteSchedulesAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+
+            await ReservationService.ChangeReservationBoatAsync(_model);
+
+            Notifications.Success("Embarcación actualizada.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

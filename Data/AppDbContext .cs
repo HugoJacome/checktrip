@@ -33,7 +33,9 @@ public class AppDbContext : DbContext
     public DbSet<Resource> Resources => Set<Resource>();
     public DbSet<UserRole> UserRoles => Set<UserRole>();
     public DbSet<RoleResourcePermission> RoleResourcePermissions => Set<RoleResourcePermission>();
-    public DbSet<Ticket> Tickets => Set<Ticket>();
+    public DbSet<Ticket> Tickets => Set<Ticket>(); 
+    public DbSet<ReservationComment> ReservationComments => Set<ReservationComment>();
+    public DbSet<ReservationTripCrew> ReservationTripCrews => Set<ReservationTripCrew>();
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -140,6 +142,30 @@ public class AppDbContext : DbContext
             entity.Property(x => x.CreatedAt)
                 .HasColumnType("timestamp with time zone");
         });
+
+
+        modelBuilder.Entity<ReservationComment>(entity =>
+        {
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.HasOne(x => x.Reservation)
+                .WithMany(x => x.Comments)
+                .HasForeignKey(x => x.ReservationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReservationTripCrew>(entity =>
+        {
+            entity.Property(x => x.CreatedAt)
+                .HasColumnType("timestamp with time zone");
+
+            entity.HasOne(x => x.Reservation)
+                .WithMany(x => x.TripCrews)
+                .HasForeignKey(x => x.ReservationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }

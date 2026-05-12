@@ -3,6 +3,7 @@ using CheckAccess.Infrastructure.Auth;
 using CheckTrip.Web.Data;
 using CheckTrip.Web.Data.Entities;
 using CheckTrip.Web.Features.Reservations.Models;
+using CheckTrip.Web.Features.Reservations.Models.Operations;
 using CheckTrip.Web.Infrastructure.Audit;
 using CheckTrip.Web.Infrastructure.Auth;
 using CheckTrip.Web.Infrastructure.Repositories;
@@ -863,4 +864,537 @@ public class ReservationService
 
         await _db.SaveChangesAsync();
     }
+    public async Task<List<ReservationOperationItem>> GetOperationsReservationsAsync(
+    ReservationOperationsFilter filter)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        var query = _db.Reservations
+            .AsNoTracking()
+            .Include(x => x.Agency)
+            .Include(x => x.Seller)
+            .Include(x => x.Comments)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.OutboundRouteSchedule)
+                    .ThenInclude(x => x!.Boat)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.OutboundRouteSchedule)
+                    .ThenInclude(x => x!.Route)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.OutboundRouteSchedule)
+                    .ThenInclude(x => x!.Schedule)
+            .Where(x => x.TenantId == tenantId);
+
+        if (filter.DateFrom.HasValue)
+        {
+            var date = DateOnly.FromDateTime(filter.DateFrom.Value.Date);
+            query = query.Where(x => x.Items.Any(i =>
+                i.OutboundTravelDate >= date ||
+                i.ReturnTravelDate >= date));
+        }
+
+        if (filter.DateTo.HasValue)
+        {
+            var date = DateOnly.FromDateTime(filter.DateTo.Value.Date);
+            query = query.Where(x => x.Items.Any(i =>
+                i.OutboundTravelDate <= date ||
+                i.ReturnTravelDate <= date));
+        }
+
+        if (filter.AgencyId.HasValue)
+            query = query.Where(x => x.AgencyId == filter.AgencyId.Value);
+
+        if (filter.SellerId.HasValue)
+            query = query.Where(x => x.SellerId == filter.SellerId.Value);
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+            query = query.Where(x => x.Status == filter.Status);
+
+        if (!string.IsNullOrWhiteSpace(filter.PaymentStatus))
+            query = query.Where(x => x.PaymentStatus == filter.PaymentStatus);
+
+        if (filter.BoatId.HasValue)
+        {
+            query = query.Where(x => x.Items.Any(i =>
+                i.OutboundRouteSchedule != null &&
+                i.OutboundRouteSchedule.BoatId == filter.BoatId.Value));
+        }
+
+        if (filter.RouteId.HasValue)
+        {
+            query = query.Where(x => x.Items.Any(i =>
+                i.OutboundRouteSchedule != null &&
+                i.OutboundRouteSchedule.RouteId == filter.RouteId.Value));
+        }
+
+        var data = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync();
+
+        return data.Select(x =>
+        {
+            var firstItem = x.Items.FirstOrDefault(i => i.Status != "Cancelled");
+            var outbound = firstItem?.OutboundRouteSchedule;
+
+            return new ReservationOperationItem
+            {
+                Id = x.Id,
+                ReservationCode = x.ReservationCode,
+                ExternalReference = x.ExternalReference,
+                Agency = x.Agency?.Name,
+                Seller = x.Seller is null ? null : $"{x.Seller.FirstName} {x.Seller.LastName}".Trim(),
+                Boat = outbound?.Boat?.Name,
+                Route = outbound?.Route is null ? null : $"{outbound.Route.Origin} - {outbound.Route.Destination}",
+                Schedule = outbound?.Schedule?.Name,
+                TravelDate = firstItem?.OutboundTravelDate,
+                Status = x.Status,
+                PaymentStatus = x.PaymentStatus,
+                PassengerCount = x.Items.Count(i => i.Status != "Cancelled"),
+                TotalAmount = x.Items.Where(i => i.Status != "Cancelled").Sum(i => i.TotalPrice),
+                ContactName = x.ContactName,
+                ContactPhone = x.ContactPhone,
+                Notes = x.Notes,
+                LastComment = x.Comments
+                    .OrderByDescending(c => c.CreatedAt)
+                    .Select(c => c.Comment)
+                    .FirstOrDefault(),
+                CreatedAt = x.CreatedAt
+            };
+        }).ToList();
+    }
+    public async Task<List<ReservationPassengerOperationItem>> GetOperationsPassengersAsync(
+    ReservationOperationsFilter filter)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        var query = _db.ReservationItems
+            .AsNoTracking()
+            .Include(x => x.Reservation)
+                .ThenInclude(x => x.Agency)
+            .Include(x => x.Reservation)
+                .ThenInclude(x => x.Seller)
+            .Include(x => x.Customer)
+            .Include(x => x.OutboundRouteSchedule)
+                .ThenInclude(x => x!.Boat)
+            .Include(x => x.OutboundRouteSchedule)
+                .ThenInclude(x => x!.Route)
+            .Include(x => x.OutboundRouteSchedule)
+                .ThenInclude(x => x!.Schedule)
+            .Include(x => x.ReturnRouteSchedule)
+                .ThenInclude(x => x!.Boat)
+            .Include(x => x.ReturnRouteSchedule)
+                .ThenInclude(x => x!.Route)
+            .Include(x => x.ReturnRouteSchedule)
+                .ThenInclude(x => x!.Schedule)
+            .Where(x => x.TenantId == tenantId);
+
+        if (filter.DateFrom.HasValue)
+        {
+            var date = DateOnly.FromDateTime(filter.DateFrom.Value.Date);
+            query = query.Where(x =>
+                x.OutboundTravelDate >= date ||
+                x.ReturnTravelDate >= date);
+        }
+
+        if (filter.DateTo.HasValue)
+        {
+            var date = DateOnly.FromDateTime(filter.DateTo.Value.Date);
+            query = query.Where(x =>
+                x.OutboundTravelDate <= date ||
+                x.ReturnTravelDate <= date);
+        }
+
+        if (filter.AgencyId.HasValue)
+            query = query.Where(x => x.Reservation.AgencyId == filter.AgencyId.Value);
+
+        if (filter.SellerId.HasValue)
+            query = query.Where(x => x.Reservation.SellerId == filter.SellerId.Value);
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+            query = query.Where(x => x.Reservation.Status == filter.Status);
+
+        if (!string.IsNullOrWhiteSpace(filter.PaymentStatus))
+            query = query.Where(x => x.Reservation.PaymentStatus == filter.PaymentStatus);
+
+        if (filter.BoatId.HasValue)
+        {
+            query = query.Where(x =>
+                (x.OutboundRouteSchedule != null && x.OutboundRouteSchedule.BoatId == filter.BoatId.Value) ||
+                (x.ReturnRouteSchedule != null && x.ReturnRouteSchedule.BoatId == filter.BoatId.Value));
+        }
+
+        if (filter.RouteId.HasValue)
+        {
+            query = query.Where(x =>
+                (x.OutboundRouteSchedule != null && x.OutboundRouteSchedule.RouteId == filter.RouteId.Value) ||
+                (x.ReturnRouteSchedule != null && x.ReturnRouteSchedule.RouteId == filter.RouteId.Value));
+        }
+
+        var data = await query
+            .OrderByDescending(x => x.OutboundTravelDate)
+            .ThenBy(x => x.Reservation.ReservationCode)
+            .ThenBy(x => x.Customer.FullName)
+            .ToListAsync();
+
+        return data.Select(x => new ReservationPassengerOperationItem
+        {
+            ReservationId = x.ReservationId,
+            ReservationItemId = x.Id,
+            ReservationCode = x.Reservation.ReservationCode,
+            ExternalReference = x.Reservation.ExternalReference,
+            Agency = x.Reservation.Agency?.Name,
+            Seller = x.Reservation.Seller is null
+                ? null
+                : $"{x.Reservation.Seller.FirstName} {x.Reservation.Seller.LastName}".Trim(),
+
+            DocumentType = x.Customer.DocumentType,
+            DocumentNumber = x.Customer.DocumentNumber,
+            FullName = x.Customer.FullName,
+            Nationality = x.Customer.Nationality,
+            Age = x.Customer.Age,
+
+            PassengerType = x.PassengerType,
+            TripType = x.TripType,
+
+            OutboundBoat = x.OutboundRouteSchedule?.Boat?.Name,
+            OutboundRoute = x.OutboundRouteSchedule?.Route is null
+                ? null
+                : $"{x.OutboundRouteSchedule.Route.Origin} - {x.OutboundRouteSchedule.Route.Destination}",
+            OutboundSchedule = x.OutboundRouteSchedule?.Schedule?.Name,
+            OutboundTravelDate = x.OutboundTravelDate,
+
+            ReturnBoat = x.ReturnRouteSchedule?.Boat?.Name,
+            ReturnRoute = x.ReturnRouteSchedule?.Route is null
+                ? null
+                : $"{x.ReturnRouteSchedule.Route.Origin} - {x.ReturnRouteSchedule.Route.Destination}",
+            ReturnSchedule = x.ReturnRouteSchedule?.Schedule?.Name,
+            ReturnTravelDate = x.ReturnTravelDate,
+
+            Status = x.Status,
+            PaymentStatus = x.Reservation.PaymentStatus
+        }).ToList();
+    }
+    public async Task AddCommentAsync(AddReservationCommentModel model)
+    {
+        var user = await _currentUser.LoadAsync();
+
+        if (user is null)
+            throw new Exception("Usuario no autenticado.");
+
+        if (string.IsNullOrWhiteSpace(model.Comment))
+            throw new Exception("Debe ingresar un comentario.");
+
+        var reservation = await _db.Reservations
+            .FirstOrDefaultAsync(x => x.Id == model.ReservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        var oldPaymentStatus = reservation.PaymentStatus;
+
+        if (!string.IsNullOrWhiteSpace(model.PaymentStatus))
+        {
+            reservation.PaymentStatus = model.PaymentStatus;
+            reservation.UpdatedAt = DateTime.UtcNow;
+        }
+
+        var comment = new ReservationComment
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            CommentType = model.CommentType,
+            Comment = model.Comment.Trim(),
+            PaymentStatus = reservation.PaymentStatus,
+            CreatedByUserId = user.UserId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.ReservationComments.Add(comment);
+
+        _db.ReservationHistory.Add(new ReservationHistory
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            Action = "AddComment",
+            Reason = model.Comment,
+            OldStatus = oldPaymentStatus,
+            NewStatus = reservation.PaymentStatus,
+            CreatedByUserId = user.UserId,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Reservation", "AddComment", new
+        {
+            reservation.Id,
+            PaymentStatus = oldPaymentStatus
+        }, new
+        {
+            reservation.Id,
+            reservation.PaymentStatus,
+            model.CommentType,
+            model.Comment
+        });
+    }
+    public async Task ChangeReservationBoatAsync(ChangeReservationBoatModel model)
+    {
+        var user = await _currentUser.LoadAsync();
+
+        if (user is null)
+            throw new Exception("Usuario no autenticado.");
+
+        if (!model.ApplyToOutbound && !model.ApplyToReturn)
+            throw new Exception("Debe seleccionar ida, retorno o ambos.");
+
+        if (string.IsNullOrWhiteSpace(model.Reason))
+            throw new Exception("Debe ingresar el motivo del cambio.");
+
+        var newSchedule = await _db.BoatRouteSchedules
+            .Include(x => x.Boat)
+            .Include(x => x.Route)
+            .Include(x => x.Schedule)
+            .FirstOrDefaultAsync(x => x.Id == model.NewBoatRouteScheduleId && x.IsActive);
+
+        if (newSchedule is null)
+            throw new Exception("La nueva embarcación/horario no existe o está inactiva.");
+
+        var reservation = await _db.Reservations
+            .Include(x => x.Items)
+                .ThenInclude(x => x.OutboundRouteSchedule)
+                    .ThenInclude(x => x!.Boat)
+            .Include(x => x.Items)
+                .ThenInclude(x => x.ReturnRouteSchedule)
+                    .ThenInclude(x => x!.Boat)
+            .FirstOrDefaultAsync(x => x.Id == model.ReservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        var oldValues = reservation.Items.Select(x => new
+        {
+            x.Id,
+            x.OutboundRouteScheduleId,
+            OutboundBoat = x.OutboundRouteSchedule?.Boat?.Name,
+            x.ReturnRouteScheduleId,
+            ReturnBoat = x.ReturnRouteSchedule?.Boat?.Name
+        }).ToList();
+
+        foreach (var item in reservation.Items.Where(x => x.Status != "Cancelled"))
+        {
+            if (model.ApplyToOutbound && item.OutboundRouteScheduleId.HasValue)
+                item.OutboundRouteScheduleId = model.NewBoatRouteScheduleId;
+
+            if (model.ApplyToReturn && item.ReturnRouteScheduleId.HasValue)
+                item.ReturnRouteScheduleId = model.NewBoatRouteScheduleId;
+        }
+
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        _db.ReservationHistory.Add(new ReservationHistory
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            Action = "ChangeBoat",
+            Reason = model.Reason,
+            CreatedByUserId = user.UserId,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Reservation", "ChangeBoat", oldValues, new
+        {
+            reservation.Id,
+            reservation.ReservationCode,
+            NewBoatRouteScheduleId = model.NewBoatRouteScheduleId,
+            Boat = newSchedule.Boat.Name,
+            Route = $"{newSchedule.Route.Origin} - {newSchedule.Route.Destination}",
+            Schedule = newSchedule.Schedule.Name,
+            model.ApplyToOutbound,
+            model.ApplyToReturn,
+            model.Reason
+        });
+    }
+    public async Task FinishWithCrewAsync(FinishReservationModel model)
+    {
+        var user = await _currentUser.LoadAsync();
+
+        if (user is null)
+            throw new Exception("Usuario no autenticado.");
+
+        if (string.IsNullOrWhiteSpace(model.CaptainName))
+            throw new Exception("Debe ingresar el capitán.");
+
+        if (!model.ApplyToOutbound && !model.ApplyToReturn)
+            throw new Exception("Debe seleccionar ida, retorno o ambos.");
+
+        var reservation = await _db.Reservations
+            .Include(x => x.Items)
+            .Include(x => x.TripCrews)
+            .FirstOrDefaultAsync(x => x.Id == model.ReservationId);
+
+        if (reservation is null)
+            throw new Exception("Reserva no encontrada.");
+
+        if (reservation.Status == "Cancelled")
+            throw new Exception("No se puede finiquitar una reserva cancelada.");
+
+        var oldStatus = reservation.Status;
+
+        if (model.ApplyToOutbound)
+        {
+            UpsertTripCrew(reservation, model, "Outbound", user.UserId);
+        }
+
+        if (model.ApplyToReturn)
+        {
+            UpsertTripCrew(reservation, model, "Return", user.UserId);
+        }
+
+        reservation.Status = "Finished";
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        foreach (var item in reservation.Items.Where(x => x.Status != "Cancelled"))
+            item.Status = "Finished";
+
+        _db.ReservationHistory.Add(new ReservationHistory
+        {
+            TenantId = reservation.TenantId,
+            ReservationId = reservation.Id,
+            Action = "FinishWithCrew",
+            Reason = model.Notes,
+            OldStatus = oldStatus,
+            NewStatus = reservation.Status,
+            CreatedByUserId = user.UserId,
+            CreatedAt = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Reservation", "FinishWithCrew", new
+        {
+            reservation.Id,
+            OldStatus = oldStatus
+        }, new
+        {
+            reservation.Id,
+            reservation.ReservationCode,
+            reservation.Status,
+            model.CaptainName,
+            model.CaptainDocument,
+            model.Sailor1Name,
+            model.Sailor2Name,
+            model.Sailor3Name,
+            model.ApplyToOutbound,
+            model.ApplyToReturn,
+            model.Notes
+        });
+    }
+    private static void UpsertTripCrew(
+    Reservation reservation,
+    FinishReservationModel model,
+    string tripType,
+    Guid userId)
+    {
+        var crew = reservation.TripCrews
+            .FirstOrDefault(x => x.TripType == tripType);
+
+        if (crew is null)
+        {
+            crew = new ReservationTripCrew
+            {
+                TenantId = reservation.TenantId,
+                ReservationId = reservation.Id,
+                TripType = tripType,
+                CreatedByUserId = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            reservation.TripCrews.Add(crew);
+        }
+
+        crew.CaptainName = model.CaptainName.Trim();
+        crew.CaptainDocument = model.CaptainDocument;
+        crew.Sailor1Name = model.Sailor1Name;
+        crew.Sailor1Document = model.Sailor1Document;
+        crew.Sailor2Name = model.Sailor2Name;
+        crew.Sailor2Document = model.Sailor2Document;
+        crew.Sailor3Name = model.Sailor3Name;
+        crew.Sailor3Document = model.Sailor3Document;
+        crew.Notes = model.Notes;
+    }
+    public async Task<List<CatalogItem>> GetOperationBoatsAsync()
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        return await _db.Boats
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.Name)
+            .Select(x => new CatalogItem
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<CatalogItem>> GetOperationAgenciesAsync()
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        return await _db.Agencies
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.Name)
+            .Select(x => new CatalogItem
+            {
+                Id = x.Id,
+                Name = x.Name
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<CatalogItem>> GetOperationSellersAsync()
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        return await _db.Sellers
+            .AsNoTracking()
+            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.FirstName)
+            .ThenBy(x => x.LastName)
+            .Select(x => new CatalogItem
+            {
+                Id = x.Id,
+                Name = $"{x.FirstName} {x.LastName}".Trim()
+            })
+            .ToListAsync();
+    }
+    public async Task<List<RouteScheduleCatalogItem>> GetOperationRouteSchedulesAsync()
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        return await _db.BoatRouteSchedules
+            .AsNoTracking()
+            .Include(x => x.Boat)
+            .Include(x => x.Route)
+            .Include(x => x.Schedule)
+            .Where(x => x.TenantId == tenantId && x.IsActive)
+            .OrderBy(x => x.Boat.Name)
+            .ThenBy(x => x.Route.Origin)
+            .ThenBy(x => x.Schedule.DepartureTime)
+            .Select(x => new RouteScheduleCatalogItem
+            {
+                Id = x.Id,
+                BoatId = x.BoatId,
+                RouteId = x.RouteId,
+                Boat = x.Boat.Name,
+                Route = x.Route.Origin + " - " + x.Route.Destination,
+                Schedule = x.Schedule.Name
+            })
+            .ToListAsync();
+    }
+
 }

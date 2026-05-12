@@ -23,5 +23,7 @@ public class Reservation : BaseEntity
     public DateTime? UpdatedAt { get; set; }
     public string? Notes { get; set; }
 
-    public List<ReservationItem> Items { get; set; } = [];
+    public List<ReservationItem> Items { get; set; } = []; 
+    public List<ReservationComment> Comments { get; set; } = [];
+    public List<ReservationTripCrew> TripCrews { get; set; } = [];
 }

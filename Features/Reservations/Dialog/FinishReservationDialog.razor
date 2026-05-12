@@ -1,0 +1,142 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject ReservationService ReservationService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Al finiquitar la reserva se guardará la tripulación y la reserva pasará a estado Finalizada.
+            </MudAlert>
+
+            <MudStack Row="true">
+                <MudCheckBox T="bool"
+                             Label="Aplicar a ida"
+                             @bind-Checked="_model.ApplyToOutbound" />
+
+                <MudCheckBox T="bool"
+                             Label="Aplicar a retorno"
+                             @bind-Checked="_model.ApplyToReturn" />
+            </MudStack>
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle2">Capitán</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Nombre capitán"
+                                  @bind-Value="_model.CaptainName"
+                                  Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula capitán"
+                                  @bind-Value="_model.CaptainDocument" />
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle2">Marineros</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 1"
+                                  @bind-Value="_model.Sailor1Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 1"
+                                  @bind-Value="_model.Sailor1Document" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 2"
+                                  @bind-Value="_model.Sailor2Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 2"
+                                  @bind-Value="_model.Sailor2Document" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 3"
+                                  @bind-Value="_model.Sailor3Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 3"
+                                  @bind-Value="_model.Sailor3Document" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField Label="Observación"
+                          Lines="3"
+                          @bind-Value="_model.Notes" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Success"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Finiquitar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid ReservationId { get; set; }
+
+    private bool _saving;
+
+    private FinishReservationModel _model = new()
+    {
+        ApplyToOutbound = true,
+        ApplyToReturn = true
+    };
+
+    protected override void OnInitialized()
+    {
+        _model.ReservationId = ReservationId;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+
+            await ReservationService.FinishWithCrewAsync(_model);
+
+            Notifications.Success("Reserva finiquitada.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}
