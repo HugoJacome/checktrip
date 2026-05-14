@@ -27,11 +27,13 @@
                     <HeaderContent>
                         <MudTh>Documento</MudTh>
                         <MudTh>Nombre</MudTh>
+                        <MudTh>Edad</MudTh>
                         <MudTh></MudTh>
                     </HeaderContent>
                     <RowTemplate>
                         <MudTd>@context.DocumentNumber</MudTd>
                         <MudTd>@context.FullName</MudTd>
+                        <MudTd>@context.Age</MudTd>
                         <MudTd>
                             <MudButton Size="Size.Small"
                                        Color="Color.Primary"
@@ -68,7 +70,11 @@
                 </MudItem>
 
                 <MudItem xs="12" md="6">
-                    <MudDatePicker Label="Fecha nacimiento" @bind-Date="_new.BirthDate" />
+                    <MudNumericField T="int?"
+                                     Label="Edad"
+                                     Min="0"
+                                     Max="120"
+                                     @bind-Value="_new.Age" />
                 </MudItem>
             </MudGrid>
         </MudStack>
@@ -88,12 +94,26 @@
 
     private string? _search;
     private List<CustomerLookupModel> _results = [];
-    private CustomerUpsertModel _new = new();
+    private CustomerUpsertModel _new = new()
+    {
+        DocumentType = "Cedula"
+    };
+    [Parameter]
+    public string? InitialSearch { get; set; }
 
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(InitialSearch))
+        {
+            _search = InitialSearch;
+            await SearchAsync();
+        }
+    }
     private async Task SearchAsync()
     {
         _results = await Service.SearchCustomersAsync(_search ?? "");
     }
+
 
     private void Select(CustomerLookupModel customer)
     {
@@ -102,8 +122,9 @@
             DocumentType = customer.DocumentType,
             DocumentNumber = customer.DocumentNumber,
             FullName = customer.FullName,
+            Nationality = customer.Nationality,
             Age = customer.Age,
-            PassengerType = "Adult",
+            PassengerType = GetPassengerType(customer.Age),
             Outbound = true,
             Return = true
         };
@@ -119,14 +140,18 @@
             DocumentNumber = _new.DocumentNumber,
             FullName = _new.FullName,
             Nationality = _new.Nationality,
-            BirthDate = _new.BirthDate,
             Age = _new.Age,
-            PassengerType = "Adult",
+            PassengerType = GetPassengerType(_new.Age),
             Outbound = true,
             Return = true
         };
 
         MudDialog.Close(DialogResult.Ok(passenger));
+    }
+
+    private static string GetPassengerType(int? age)
+    {
+        return age is <= 1 ? "Infant" : "Adult";
     }
 
     private void Cancel()

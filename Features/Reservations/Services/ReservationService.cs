@@ -396,6 +396,7 @@ public class ReservationService
             DocumentType = customer.DocumentType,
             DocumentNumber = customer.DocumentNumber,
             FullName = customer.FullName,
+            Nationality = customer.Nationality ?? "",
             Age = customer.Age
         };
     }
@@ -412,6 +413,7 @@ public class ReservationService
             DocumentType = x.DocumentType,
             DocumentNumber = x.DocumentNumber,
             FullName = x.FullName,
+            Nationality = x.Nationality,
             Age = x.Age
         }).ToList();
     }
@@ -736,6 +738,8 @@ public class ReservationService
     }
     public async Task CancelPassengerAsync(Guid reservationId, Guid itemId, string? reason)
     {
+        var userId = await GetRequiredCurrentUserIdAsync();
+
         var reservation = await _repo.GetFullAsync(reservationId);
 
         if (reservation is null)
@@ -745,6 +749,12 @@ public class ReservationService
 
         if (item is null)
             throw new Exception("Pasajero no encontrado.");
+
+        if (item.Status == "Cancelled")
+            throw new Exception("El pasajero ya se encuentra cancelado.");
+
+        var oldReservationStatus = reservation.Status;
+        var oldItemStatus = item.Status;
 
         item.Status = "Cancelled";
         reservation.UpdatedAt = DateTime.UtcNow;
@@ -757,18 +767,46 @@ public class ReservationService
             TenantId = reservation.TenantId,
             ReservationId = reservation.Id,
             Action = "CancelPassenger",
-            Reason = reason,
+            Reason = string.IsNullOrWhiteSpace(reason)
+                ? $"Pasajero cancelado: {item.Customer?.FullName}"
+                : reason,
+            OldStatus = oldReservationStatus,
+            NewStatus = reservation.Status,
+            CreatedByUserId = userId,
             CreatedAt = DateTime.UtcNow
         });
 
         await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Reservation", "CancelPassenger", new
+        {
+            reservation.Id,
+            ReservationStatus = oldReservationStatus,
+            ItemId = item.Id,
+            ItemStatus = oldItemStatus,
+            CustomerId = item.CustomerId
+        }, new
+        {
+            reservation.Id,
+            ReservationStatus = reservation.Status,
+            ItemId = item.Id,
+            ItemStatus = item.Status,
+            CustomerId = item.CustomerId
+        });
     }
     public async Task ReplacePassengerAsync(
     Guid reservationId,
     Guid itemId,
     ReservationPassengerModel passenger)
     {
+        var userId = await GetRequiredCurrentUserIdAsync();
         var tenantId = _tenant.GetTenantId();
+
+        if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+            throw new Exception("Debe ingresar el documento del pasajero.");
+
+        if (string.IsNullOrWhiteSpace(passenger.FullName))
+            throw new Exception("Debe ingresar el nombre del pasajero.");
 
         var reservation = await _repo.GetFullAsync(reservationId);
 
@@ -779,6 +817,13 @@ public class ReservationService
 
         if (item is null)
             throw new Exception("Pasajero no encontrado.");
+
+        if (item.Status == "Cancelled")
+            throw new Exception("No se puede reemplazar un pasajero cancelado.");
+
+        var oldCustomerId = item.CustomerId;
+        var oldPassengerType = item.PassengerType;
+        var oldTripType = item.TripType;
 
         var customer = await GetOrCreateCustomerAsync(passenger, tenantId);
 
@@ -794,10 +839,29 @@ public class ReservationService
             ReservationId = reservation.Id,
             Action = "ReplacePassenger",
             Reason = $"Pasajero reemplazado en item {itemId}",
+            OldStatus = reservation.Status,
+            NewStatus = reservation.Status,
+            CreatedByUserId = userId,
             CreatedAt = DateTime.UtcNow
         });
 
         await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Reservation", "ReplacePassenger", new
+        {
+            reservation.Id,
+            ItemId = item.Id,
+            CustomerId = oldCustomerId,
+            PassengerType = oldPassengerType,
+            TripType = oldTripType
+        }, new
+        {
+            reservation.Id,
+            ItemId = item.Id,
+            CustomerId = item.CustomerId,
+            PassengerType = item.PassengerType,
+            TripType = item.TripType
+        });
     }
     public async Task UpdateAsync(Guid reservationId, CreateReservationModel model)
     {
@@ -1396,5 +1460,18 @@ public class ReservationService
             })
             .ToListAsync();
     }
+    private async Task<Guid> GetRequiredCurrentUserIdAsync()
+    {
+        var user = await _currentUser.LoadAsync();
 
+        if (user is null || user.UserId == Guid.Empty)
+            throw new Exception("Usuario no autenticado.");
+
+        var exists = await _db.Users.AnyAsync(x => x.Id == user.UserId);
+
+        if (!exists)
+            throw new Exception("El usuario autenticado no existe en la tabla Users.");
+
+        return user.UserId;
+    }
 }

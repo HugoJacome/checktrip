@@ -15,7 +15,20 @@
 
 <RequirePermission ResourceCode="reservations.monitor">
     <MudStack Spacing="3">
-        <MudText Typo="Typo.h5">Monitor de Reservas</MudText>
+        <MudStack Row="true"
+                  AlignItems="AlignItems.Center"
+                  Justify="Justify.SpaceBetween"
+                  Class="mb-2">
+
+            <MudText Typo="Typo.h5">Monitor de Reservas</MudText>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="@(() => Navigation.NavigateTo("/reservations/create"))">
+                Nueva reserva
+            </MudButton>
+        </MudStack>
 
         <MudPaper Class="pa-4">
             <MudGrid>
@@ -36,14 +49,14 @@
                     </MudSelect>
                 </MudItem>
 
-                <MudItem xs="12" md="2">
+                @* <MudItem xs="12" md="2">
                     <MudSelect T="string" Label="Pago" @bind-Value="_paymentStatus">
                         <MudSelectItem Value="@("")">Todos</MudSelectItem>
                         <MudSelectItem Value="@("Pending")">Pendiente</MudSelectItem>
                         <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
                         <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
                     </MudSelect>
-                </MudItem>
+                </MudItem> *@
 
                 <MudItem xs="12" md="2">
                     <MudButton Variant="Variant.Filled"
@@ -62,7 +75,7 @@
                 <MudTh>Fecha</MudTh>
                 <MudTh>Agencia</MudTh>
                 <MudTh>Vendedor</MudTh>
-                <MudTh>Pago</MudTh>
+                @* <MudTh>Pago</MudTh> *@
                 <MudTh>Pasajeros</MudTh>
                 <MudTh>Acciones</MudTh>
             </HeaderContent>
@@ -72,7 +85,7 @@
                 <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
                 <MudTd>@context.Agency</MudTd>
                 <MudTd>@context.Seller</MudTd>
-                <MudTd>
+               @*  <MudTd>
                     <MudSelect T="string"
                                Dense="true"
                                Value="context.PaymentStatus"
@@ -81,7 +94,7 @@
                         <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
                         <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
                     </MudSelect>
-                </MudTd>
+                </MudTd> *@
                 <MudTd>@context.PassengerCount</MudTd>
                 <MudTd>
                     <MudButton Size="Size.Small"

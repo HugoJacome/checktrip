@@ -156,11 +156,24 @@
 
 <MudStack Spacing="3">
 
-    <MudText Typo="Typo.h5">@PageTitle</MudText>
-    <MudButton Variant="Variant.Outlined"
-               OnClick="GoBack">
-        Atrás
-    </MudButton>
+    <MudStack Row="true"
+              AlignItems="AlignItems.Center"
+              Justify="Justify.SpaceBetween"
+              Class="mb-2">
+
+        <MudText Typo="Typo.h5">
+            @(_isEditMode ? "Editar reserva" : "Nueva reserva")
+        </MudText>
+
+        @if (_isEditMode)
+        {
+            <MudButton Variant="Variant.Outlined"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="BackToMonitor">
+                Atrás
+            </MudButton>
+        }
+    </MudStack>
     <MudText Typo="Typo.body2">
         Seleccione la lancha, la ruta disponible, cargue los pasajeros y confirme la reserva.
     </MudText>
@@ -510,8 +523,18 @@
     private List<RouteListItem> _routes = [];
     private List<AgencyListItem> _agencies = [];
     private List<SellerListItem> _sellers = [];
-    private List<WeeklyAvailabilityItem> _weekly = [];
+    private List<WeeklyAvailabilityItem> _weekly = []; 
+    private bool _isEditMode => ReservationId.HasValue && ReservationId.Value != Guid.Empty;
+    private bool IsEditMode => ReservationId.HasValue;
+    private string PageTitle => _isEditMode ? "Editar reserva" : "Nueva reserva";
 
+    private void BackToMonitor()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+            Navigation.NavigateTo(ReturnUrl);
+        else
+            Navigation.NavigateTo("/reservations/monitor");
+    }
     private readonly List<string> _nationalities =
     [
         "Ecuatoriana",
@@ -543,8 +566,6 @@
         _selectedTrip is null ||
         !_model.Passengers.Any();
 
-    private bool IsEditMode => ReservationId.HasValue;
-    private string PageTitle => IsEditMode ? "Editar reserva" : "Nueva reserva";
 
     private IEnumerable<DateTime> WeekDays =>
         Enumerable.Range(0, 7).Select(x => _weekStart.AddDays(x));
@@ -741,7 +762,9 @@
                 "Cancelado desde edición de reserva");
 
             passenger.IsCancelled = true;
-            Notifications.Success("Pasajero cancelado.");
+            ClearPassengerRow(passenger);
+
+            Notifications.Success("Pasajero cancelado. La fila quedó disponible para ingresar otro pasajero.");
         }
         else
         {
@@ -752,58 +775,21 @@
     }
 
     private async Task OnPassengerDocumentChangedAsync(
-        ReservationPassengerModel passenger,
-        string value)
+    ReservationPassengerModel passenger,
+    string value)
     {
-        var newDocument = value?.Trim() ?? string.Empty;
-        var oldDocument = passenger.DocumentNumber?.Trim() ?? string.Empty;
+        var text = value?.Trim() ?? string.Empty;
 
-        if (string.Equals(newDocument, oldDocument, StringComparison.OrdinalIgnoreCase))
-            return;
+        passenger.DocumentNumber = text;
 
-        if (IsDuplicatedDocument(newDocument, passenger))
-        {
-            Notifications.Error($"Ya existe un pasajero con la identificación {newDocument}.");
-            return;
-        }
-
-        passenger.DocumentNumber = newDocument;
-
-        if (string.IsNullOrWhiteSpace(newDocument))
+        if (string.IsNullOrWhiteSpace(text))
         {
             ClearPassengerCustomerData(passenger);
             SyncPassengerCountersFromList();
             return;
         }
 
-        var found = await Service.GetCustomerByDocumentAsync(newDocument);
-
-        if (found is null)
-        {
-            ClearPassengerCustomerData(passenger);
-            passenger.DocumentNumber = newDocument;
-            passenger.DocumentType = string.IsNullOrWhiteSpace(passenger.DocumentType)
-                ? "Cedula"
-                : passenger.DocumentType;
-
-            passenger.IsNewCustomer = true;
-            passenger.CustomerChanged = true;
-
-            SyncPassengerCountersFromList();
-            return;
-        }
-
-        passenger.CustomerId = found.Id;
-        passenger.DocumentType = found.DocumentType;
-        passenger.DocumentNumber = found.DocumentNumber;
-        passenger.FullName = found.FullName;
-        passenger.Nationality = string.IsNullOrWhiteSpace(found.Nationality)
-            ? "Ecuatoriana"
-            : found.Nationality;
-        passenger.Age = found.Age;
-
-        ApplyPassengerTypeByAge(passenger);
-        SyncPassengerCountersFromList();
+        await OpenCustomerSearchDialogAsync(passenger, text);
     }
 
     private void OnPassengerAgeChanged(ReservationPassengerModel passenger, int? value)
@@ -836,11 +822,15 @@
         passenger.PassengerType = value;
         SyncPassengerCountersFromList();
     }
-
-    private void OnPassengerFullNameChanged(ReservationPassengerModel passenger, string value)
+    private async Task OnPassengerFullNameChanged(
+        ReservationPassengerModel passenger,
+        string value)
     {
         passenger.FullName = value;
         passenger.CustomerChanged = true;
+
+        if (!string.IsNullOrWhiteSpace(value) && value.Trim().Length >= 3)
+            await OpenCustomerSearchDialogAsync(passenger, value.Trim());
     }
 
     private void OnPassengerNationalityChanged(ReservationPassengerModel passenger, string value)
@@ -1393,6 +1383,49 @@
         }
     }
 
+    private async Task OpenCustomerSearchDialogAsync(
+    ReservationPassengerModel passenger,
+    string? searchText)
+    {
+        var parameters = new DialogParameters
+        {
+            ["InitialSearch"] = searchText
+        };
+
+        var dialog = await Dialog.ShowAsync<CustomerSearchDialog>(
+            "Buscar pasajero",
+            parameters);
+
+        var result = await dialog.Result;
+
+        if (result.Canceled || result.Data is not ReservationPassengerModel selected)
+            return;
+
+        if (IsDuplicatedDocument(selected.DocumentNumber, passenger))
+        {
+            Notifications.Error($"Ya existe un pasajero con la identificación {selected.DocumentNumber}.");
+            return;
+        }
+
+        passenger.CustomerId = selected.CustomerId;
+        passenger.DocumentType = selected.DocumentType;
+        passenger.DocumentNumber = selected.DocumentNumber;
+        passenger.FullName = selected.FullName;
+        passenger.Nationality = string.IsNullOrWhiteSpace(selected.Nationality)
+            ? "Ecuatoriana"
+            : selected.Nationality;
+        passenger.Age = selected.Age;
+        passenger.PassengerType = selected.PassengerType;
+        passenger.Outbound = true;
+        passenger.Return = selected.Return;
+        passenger.ReturnDate = selected.Return ? _model.OutboundDate?.Date : null;
+        passenger.IsNewCustomer = !selected.CustomerId.HasValue;
+        passenger.CustomerChanged = passenger.IsNewCustomer;
+
+        ApplyPassengerTypeByAge(passenger);
+        SyncPassengerCountersFromList();
+    }
+
     private void ValidatePassengerQuantities()
     {
         var adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
@@ -1559,5 +1592,22 @@
         Navigation.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl)
             ? "/reservations/monitor"
             : ReturnUrl);
+    }
+    private void ClearPassengerRow(ReservationPassengerModel passenger)
+    {
+        passenger.ReservationItemId = null;
+        passenger.CustomerId = null;
+        passenger.DocumentType = "Cedula";
+        passenger.DocumentNumber = string.Empty;
+        passenger.FullName = string.Empty;
+        passenger.Nationality = "Ecuatoriana";
+        passenger.Age = null;
+        passenger.PassengerType = "Adult";
+        passenger.Outbound = true;
+        passenger.Return = false;
+        passenger.ReturnDate = null;
+        passenger.IsCancelled = false;
+        passenger.IsNewCustomer = true;
+        passenger.CustomerChanged = true;
     }
 }
