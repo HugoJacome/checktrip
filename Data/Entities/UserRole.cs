@@ -1,8 +1,11 @@
-﻿public class UserRole
+﻿namespace CheckTrip.Web.Data.Entities;
+
+public class UserRole
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = default!;
 
     public Guid UserId { get; set; }
     public User User { get; set; } = default!;

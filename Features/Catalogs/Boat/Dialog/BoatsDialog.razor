@@ -1,68 +1,222 @@
-﻿@using MudBlazor
+﻿@using CheckAccess.Features.Catalogs.Boat.Models
+@using MudBlazor
 
 @inject BoatService Service
-@inject AgencyService AgencyService
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
+        <MudForm @ref="_form">
 
-        <MudStack Spacing="3">
+            <MudTabs Rounded="true" Border="true" Elevation="0">
 
-            <MudText Typo="Typo.subtitle1">
-                Datos del bote
-            </MudText>
+                <MudTabPanel Text="Datos del bote">
+                    <MudGrid Spacing="3" Class="pt-4">
 
-            <MudForm @ref="_form">
+                        <MudItem xs="12" md="8">
+                            <MudTextField T="string"
+                                          Label="Nombre"
+                                          @bind-Value="_model.Name"
+                                          Required="true"
+                                          RequiredError="El nombre es obligatorio."
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
-                <MudStack Spacing="3">
+                        <MudItem xs="12" md="4">
+                            <MudTextField T="string"
+                                          Label="Matrícula / Registro"
+                                          @bind-Value="_model.RegistrationNumber"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
-                    <MudTextField T="string"
-                                  Label="Nombre"
-                                  @bind-Value="_model.Name"
-                                  Required="true"
-                                  RequiredError="El nombre es obligatorio."
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" />
+                        <MudItem xs="12" md="6">
+                            <MudNumericField T="int"
+                                             Label="Capacidad"
+                                             @bind-Value="_model.Capacity"
+                                             Required="true"
+                                             Min="1"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense" />
+                        </MudItem>
 
-                    <MudNumericField T="int"
-                                     Label="Capacidad"
-                                     @bind-Value="_model.Capacity"
-                                     Required="true"
-                                     Min="0"
-                                     Variant="Variant.Outlined"
-                                     Margin="Margin.Dense" />
+                        <MudItem xs="12" md="6">
+                            <MudNumericField T="int"
+                                             Label="Capacidad extra"
+                                             @bind-Value="_model.ExtraCapacity"
+                                             Min="0"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense" />
+                        </MudItem>
 
-                    <MudNumericField T="int"
-                                     Label="Capacidad Extra"
-                                     @bind-Value="_model.ExtraCapacity"
-                                     Min="0"
-                                     Variant="Variant.Outlined"
-                                     Margin="Margin.Dense" />
+                        <MudItem xs="12">
+                            <MudCheckBox T="bool"
+                                         Label="Activo"
+                                         @bind-Value="_model.IsActive"
+                                         Color="Color.Primary" />
+                        </MudItem>
 
-                    <MudSelect T="Guid?"
-                               Label="Agencia"
-                               @bind-Value="_model.AgencyId"
-                               Required="true"
-                               RequiredError="Debe seleccionar una agencia."
-                               Variant="Variant.Outlined"
-                               Margin="Margin.Dense">
+                    </MudGrid>
+                </MudTabPanel>
 
-                        @foreach (var a in _agencies)
-                        {
-                            <MudSelectItem T="Guid?" Value="@a.Id">
-                                @a.Name
-                            </MudSelectItem>
-                        }
+                <MudTabPanel Text="Propietario">
+                    <MudGrid Spacing="3" Class="pt-4">
 
-                    </MudSelect>
+                        <MudItem xs="12" md="6">
+                            <MudTextField T="string"
+                                          Label="Propietario"
+                                          @bind-Value="_model.OwnerName"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
-                </MudStack>
+                        <MudItem xs="12" md="6">
+                            <MudTextField T="string"
+                                          Label="RUC / Documento propietario"
+                                          @bind-Value="_model.OwnerRuc"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
-            </MudForm>
+                        <MudItem xs="12" md="6">
+                            <MudTextField T="string"
+                                          Label="Email propietario"
+                                          @bind-Value="_model.OwnerEmail"
+                                          InputType="InputType.Email"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
-        </MudStack>
+                        <MudItem xs="12" md="6">
+                            <MudTextField T="string"
+                                          Label="Teléfono propietario"
+                                          @bind-Value="_model.OwnerPhone"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
 
+                    </MudGrid>
+                </MudTabPanel>
+
+                <MudTabPanel Text="Tripulación">
+                    <MudStack Spacing="3" Class="pt-4">
+
+                        <MudStack Row="true"
+                                  AlignItems="AlignItems.Center"
+                                  Justify="Justify.SpaceBetween"
+                                  Class="crew-header">
+
+                            <MudStack Spacing="0">
+                                <MudText Typo="Typo.subtitle1">
+                                    Tripulantes del bote
+                                </MudText>
+
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Debe existir 1 capitán y máximo 2 marineros activos.
+                                </MudText>
+                            </MudStack>
+
+                            <MudButton Variant="Variant.Outlined"
+                                       Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       OnClick="AddCrewMember">
+                                Agregar tripulante
+                            </MudButton>
+                        </MudStack>
+
+                        <MudPaper Class="pa-3 rounded-lg crew-table-wrapper"
+                                  Elevation="0"
+                                  Outlined="true">
+
+                            <MudTable Items="_model.CrewMembers"
+                                      Dense="true"
+                                      Hover="true"
+                                      Bordered="true"
+                                      Breakpoint="Breakpoint.None"
+                                      Class="crew-table">
+
+                                <HeaderContent>
+                                    <MudTh>Nombre</MudTh>
+                                    <MudTh>Documento</MudTh>
+                                    <MudTh>Teléfono</MudTh>
+                                    <MudTh Class="text-center">Capitán</MudTh>
+                                    <MudTh Class="text-center">Marinero</MudTh>
+                                    <MudTh Class="text-center">Activo</MudTh>
+                                    <MudTh Style="width:70px;"></MudTh>
+                                </HeaderContent>
+
+                                <RowTemplate>
+                                    <MudTd Style="min-width:240px;">
+                                        <MudTextField T="string"
+                                                      @bind-Value="context.FullName"
+                                                      Placeholder="Nombre completo"
+                                                      Required="context.IsActive"
+                                                      RequiredError="El nombre es obligatorio."
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense" />
+                                    </MudTd>
+
+                                    <MudTd Style="min-width:170px;">
+                                        <MudTextField T="string"
+                                                      @bind-Value="context.DocumentNumber"
+                                                      Placeholder="Documento"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense" />
+                                    </MudTd>
+
+                                    <MudTd Style="min-width:160px;">
+                                        <MudTextField T="string"
+                                                      @bind-Value="context.Phone"
+                                                      Placeholder="Teléfono"
+                                                      Variant="Variant.Outlined"
+                                                      Margin="Margin.Dense" />
+                                    </MudTd>
+
+                                    <MudTd Class="text-center" Style="min-width:100px;">
+                                        <MudCheckBox T="bool"
+                                                     Value="context.CanBeCaptain"
+                                                     ValueChanged="@((bool value) => OnCaptainChanged(context, value))"
+                                                     Color="Color.Primary" />
+                                    </MudTd>
+
+                                    <MudTd Class="text-center" Style="min-width:100px;">
+                                        <MudCheckBox T="bool"
+                                                     Value="context.CanBeSailor"
+                                                     ValueChanged="@((bool value) => OnSailorChanged(context, value))"
+                                                     Color="Color.Primary" />
+                                    </MudTd>
+
+                                    <MudTd Class="text-center" Style="min-width:90px;">
+                                        <MudCheckBox T="bool"
+                                                     Value="context.IsActive"
+                                                     ValueChanged="@((bool value) => OnActiveChanged(context, value))"
+                                                     Color="Color.Primary" />
+                                    </MudTd>
+
+                                    <MudTd Class="text-center">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Color="Color.Error"
+                                                       Size="Size.Small"
+                                                       OnClick="@(() => RemoveCrewMember(context))" />
+                                    </MudTd>
+                                </RowTemplate>
+
+                                <NoRecordsContent>
+                                    <MudText Class="pa-4">
+                                        No existen tripulantes registrados para este bote.
+                                    </MudText>
+                                </NoRecordsContent>
+
+                            </MudTable>
+                        </MudPaper>
+
+                    </MudStack>
+                </MudTabPanel>
+
+            </MudTabs>
+
+        </MudForm>
     </DialogContent>
 
     <DialogActions>
@@ -79,6 +233,38 @@
     </DialogActions>
 </MudDialog>
 
+<style>
+    .boat-dialog-content {
+        width: 100%;
+        min-width: 920px;
+        max-width: 1120px;
+        overflow-x: hidden;
+    }
+
+    .crew-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .crew-table {
+        min-width: 900px;
+    }
+
+    .crew-header {
+        gap: 16px;
+    }
+
+    @@media (max-width: 960px) {
+        .boat-dialog-content {
+            min-width: 100%;
+        }
+
+        .crew-header {
+            flex-direction: column !important;
+            align-items: stretch !important;
+        }
+    }
+</style>
+
 @code {
     [Parameter]
     public Guid? Id { get; set; }
@@ -86,15 +272,17 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = default!;
 
-    private BoatEditModel _model = new();
-    private List<AgencyListItem> _agencies = new();
+    private BoatEditModel _model = new()
+    {
+        Capacity = 30,
+        IsActive = true
+    };
+
     private MudForm? _form;
     private bool _saving;
 
     protected override async Task OnInitializedAsync()
     {
-        _agencies = await AgencyService.GetAllAsync();
-
         if (Id.HasValue)
         {
             var data = await Service.GetAsync(Id.Value);
@@ -102,6 +290,118 @@
             if (data is not null)
                 _model = data;
         }
+
+        _model.CrewMembers ??= new();
+    }
+
+    private void AddCrewMember()
+    {
+        _model.CrewMembers.Add(new CrewMemberEditModel
+        {
+            CanBeSailor = false,
+            CanBeCaptain = false,
+            IsActive = true
+        });
+    }
+
+    private void RemoveCrewMember(CrewMemberEditModel item)
+    {
+        if (item.Id.HasValue)
+        {
+            item.IsActive = false;
+            item.CanBeCaptain = false;
+            item.CanBeSailor = false;
+        }
+        else
+        {
+            _model.CrewMembers.Remove(item);
+        }
+    }
+
+    private void OnCaptainChanged(CrewMemberEditModel item, bool value)
+    {
+        if (!value)
+        {
+            item.CanBeCaptain = false;
+            return;
+        }
+
+        foreach (var crew in _model.CrewMembers)
+            crew.CanBeCaptain = false;
+
+        item.CanBeCaptain = true;
+        item.CanBeSailor = false;
+        item.IsActive = true;
+    }
+
+    private void OnSailorChanged(CrewMemberEditModel item, bool value)
+    {
+        if (!value)
+        {
+            item.CanBeSailor = false;
+            return;
+        }
+
+        var sailorCount = _model.CrewMembers
+            .Count(x => x.IsActive && x.CanBeSailor && x != item);
+
+        if (sailorCount >= 2)
+        {
+            Snackbar.Add("Solo se permiten máximo 2 marineros activos.", Severity.Warning);
+            item.CanBeSailor = false;
+            return;
+        }
+
+        item.CanBeSailor = true;
+        item.CanBeCaptain = false;
+        item.IsActive = true;
+    }
+
+    private void OnActiveChanged(CrewMemberEditModel item, bool value)
+    {
+        item.IsActive = value;
+
+        if (!value)
+        {
+            item.CanBeCaptain = false;
+            item.CanBeSailor = false;
+        }
+    }
+
+    private bool ValidateCrew()
+    {
+        var activeCrew = _model.CrewMembers
+            .Where(x => x.IsActive)
+            .ToList();
+
+        var captainCount = activeCrew.Count(x => x.CanBeCaptain);
+        var sailorCount = activeCrew.Count(x => x.CanBeSailor);
+
+        if (captainCount != 1)
+        {
+            Snackbar.Add("Debe existir exactamente 1 capitán activo.", Severity.Warning);
+            return false;
+        }
+
+        if (sailorCount > 2)
+        {
+            Snackbar.Add("Solo se permiten máximo 2 marineros activos.", Severity.Warning);
+            return false;
+        }
+
+        if (activeCrew.Any(x => x.CanBeCaptain && x.CanBeSailor))
+        {
+            Snackbar.Add("Un tripulante no puede ser capitán y marinero al mismo tiempo.", Severity.Warning);
+            return false;
+        }
+
+        if (activeCrew.Any(x => string.IsNullOrWhiteSpace(x.FullName)))
+        {
+            Snackbar.Add("Todo tripulante activo debe tener nombre.", Severity.Warning);
+            return false;
+        }
+
+        return true;
     }
 
     private async Task Save()
@@ -112,6 +412,9 @@
         await _form.Validate();
 
         if (!_form.IsValid)
+            return;
+
+        if (!ValidateCrew())
             return;
 
         _saving = true;

@@ -179,7 +179,7 @@ public class ReservationRepository : BaseRepository<Reservation>
             .ThenBy(x => x.Boat.Name)
             .ToListAsync();
     }
-    public async Task<List<Route>> GetRoutesByBoatAsync(Guid boatId)
+    public async Task<List<TripRoute>> GetRoutesByBoatAsync(Guid boatId)
     {
         var tenantId = _tenant.GetTenantId();
 

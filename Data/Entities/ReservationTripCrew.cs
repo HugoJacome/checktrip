@@ -1,9 +1,12 @@
-﻿using CheckTrip.Web.Data.Entities;
+﻿namespace CheckTrip.Web.Data.Entities;
 
 public class ReservationTripCrew : BaseEntity
 {
     public Guid ReservationId { get; set; }
     public Reservation Reservation { get; set; } = default!;
+
+    public Guid BoatId { get; set; }
+    public Boat Boat { get; set; } = default!;
 
     public string TripType { get; set; } = default!; // Outbound / Return
 
@@ -22,4 +25,5 @@ public class ReservationTripCrew : BaseEntity
     public string? Notes { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+    public User CreatedByUser { get; set; } = default!;
 }

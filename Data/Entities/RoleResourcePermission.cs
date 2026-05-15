@@ -1,8 +1,11 @@
-﻿public class RoleResourcePermission
+﻿namespace CheckTrip.Web.Data.Entities;
+
+public class RoleResourcePermission
 {
     public Guid Id { get; set; } = Guid.NewGuid();
 
     public Guid TenantId { get; set; }
+    public Tenant Tenant { get; set; } = default!;
 
     public Guid RoleId { get; set; }
     public Role Role { get; set; } = default!;

@@ -1,4 +1,4 @@
-﻿using CheckTrip.Web.Data.Entities;
+﻿namespace CheckTrip.Web.Data.Entities;
 
 public class ReservationHistory : BaseEntity
 {
@@ -12,4 +12,5 @@ public class ReservationHistory : BaseEntity
     public string? NewStatus { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+    public User CreatedByUser { get; set; } = default!;
 }

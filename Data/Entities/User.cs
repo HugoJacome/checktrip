@@ -13,5 +13,5 @@ public class User : BaseEntity
     public DateTime? LastLoginUtc { get; set; }
     public DateTime? LastFailedLoginUtc { get; set; }
 
-    public List<UserRole> UserRoles { get; set; } = new();
+    public List<UserRole> UserRoles { get; set; } = [];
 }

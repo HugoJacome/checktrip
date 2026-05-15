@@ -1,5 +1,4 @@
-﻿using CheckAccess.Features.Catalogs.Schedule.Page;
-using CheckTrip.Web.Data.Entities;
+﻿using CheckTrip.Web.Data.Entities;
 
 public class BoatRouteSchedule : BaseEntity
 {
@@ -7,7 +6,7 @@ public class BoatRouteSchedule : BaseEntity
     public Boat Boat { get; set; } = default!;
 
     public Guid RouteId { get; set; }
-    public Route Route { get; set; } = default!;
+    public TripRoute Route { get; set; } = default!;
 
     public Guid ScheduleId { get; set; }
     public Schedule Schedule { get; set; } = default!;

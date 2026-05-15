@@ -36,6 +36,43 @@
                                  Color="Color.Primary" />
 
                 </MudStack>
+                <MudDivider Class="my-4" />
+
+                <MudText Typo="Typo.subtitle1">
+                    Comisiones por ruta
+                </MudText>
+
+                <MudTable Items="_model.Routes"
+                          Dense="true"
+                          Hover="true"
+                          Bordered="true">
+                    <HeaderContent>
+                        <MudTh>Asignar</MudTh>
+                        <MudTh>Ruta</MudTh>
+                        <MudTh>Comisión</MudTh>
+                    </HeaderContent>
+
+                    <RowTemplate>
+                        <MudTd>
+                            <MudCheckBox T="bool"
+                                         @bind-Value="context.IsSelected"
+                                         Color="Color.Primary" />
+                        </MudTd>
+
+                        <MudTd>@context.RouteName</MudTd>
+
+                        <MudTd>
+                            <MudNumericField T="decimal"
+                                             @bind-Value="context.Value"
+                                             Disabled="@(!context.IsSelected)"
+                                             Min="0"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Adornment="Adornment.Start"
+                                             AdornmentText="$" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
 
             </MudForm>
 
@@ -80,6 +117,10 @@
 
             if (data is not null)
                 _model = data;
+        }
+        else
+        {
+            _model = await Service.NewAsync();
         }
     }
 

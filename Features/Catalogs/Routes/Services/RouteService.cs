@@ -47,7 +47,7 @@ public class RouteService
     {
         if (model.Id == null)
         {
-            var entity = new Route
+            var entity = new TripRoute
             {
                 TenantId = _tenant.GetTenantId(),
                 Origin = model.Origin,

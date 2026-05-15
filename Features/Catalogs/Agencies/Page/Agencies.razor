@@ -77,6 +77,11 @@
                     </MudTableSortLabel>
                 </MudTh>
 
+                <MudTh>Tipo</MudTh>
+                <MudTh>Contacto</MudTh>
+                <MudTh>Teléfono</MudTh>
+                <MudTh>Email</MudTh>
+
                 <MudTh Style="width:160px; text-align:right;">
                     Acciones
                 </MudTh>
@@ -85,6 +90,10 @@
             <RowTemplate>
                 <MudTd DataLabel="Nombre">@context.Name</MudTd>
                 <MudTd DataLabel="RUC">@context.Ruc</MudTd>
+                <MudTd DataLabel="Tipo">@context.Type</MudTd>
+                <MudTd DataLabel="Contacto">@context.ContactPerson</MudTd>
+                <MudTd DataLabel="Teléfono">@context.Phone</MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
 
                 <MudTd DataLabel="Acciones" Class="text-end">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
@@ -176,7 +185,12 @@
             return true;
 
         return Contains(item.Name) ||
-               Contains(item.Ruc);
+               Contains(item.Ruc) ||
+               Contains(item.Type) ||
+               Contains(item.ContactPerson) ||
+               Contains(item.ContactPhone) ||
+               Contains(item.Phone) ||
+               Contains(item.Email);
     }
 
     private bool Contains(string? value)
@@ -194,7 +208,7 @@
         var options = new DialogOptions
         {
             CloseButton = true,
-            MaxWidth = MaxWidth.Small,
+            MaxWidth = MaxWidth.Medium,
             FullWidth = true
         };
 
@@ -219,7 +233,7 @@
         var options = new DialogOptions
         {
             CloseButton = true,
-            MaxWidth = MaxWidth.Small,
+            MaxWidth = MaxWidth.Medium,
             FullWidth = true
         };
 
@@ -238,7 +252,7 @@
     {
         try
         {
-            await Service.DeleteAsync(id);
+            // await Service.DeleteAsync(id);
             Notifications.Success("Agencia eliminada correctamente.");
             await LoadAsync();
         }

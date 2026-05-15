@@ -81,12 +81,6 @@
                     </MudTableSortLabel>
                 </MudTh>
 
-                <MudTh>
-                    <MudTableSortLabel T="BoatListItem" SortBy="x => x.AgencyName">
-                        Agencia
-                    </MudTableSortLabel>
-                </MudTh>
-
                 <MudTh Style="width:160px; text-align:right;">
                     Acciones
                 </MudTh>
@@ -96,7 +90,6 @@
                 <MudTd DataLabel="Nombre">@context.Name</MudTd>
                 <MudTd DataLabel="Capacidad">@context.Capacity</MudTd>
                 <MudTd DataLabel="Extra">@context.ExtraCapacity</MudTd>
-                <MudTd DataLabel="Agencia">@context.AgencyName</MudTd>
 
                 <MudTd DataLabel="Acciones" Class="text-end">
                     <MudIconButton Icon="@Icons.Material.Filled.Edit"
@@ -184,7 +177,6 @@
             return true;
 
         return Contains(item.Name) ||
-               Contains(item.AgencyName) ||
                item.Capacity.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase) ||
                item.ExtraCapacity.ToString().Contains(_search, StringComparison.OrdinalIgnoreCase);
     }
@@ -199,7 +191,8 @@
         var options = new DialogOptions
         {
             CloseButton = true,
-            MaxWidth = MaxWidth.Small,
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.ExtraLarge,
             FullWidth = true
         };
 
@@ -223,7 +216,8 @@
         var options = new DialogOptions
         {
             CloseButton = true,
-            MaxWidth = MaxWidth.Small,
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.ExtraLarge,
             FullWidth = true
         };
 

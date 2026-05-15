@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CheckTrip.Web.Infrastructure.Repositories;
 
-public class RouteRepository : BaseRepository<Route>
+public class RouteRepository : BaseRepository<TripRoute>
 {
     private readonly ITenantProvider _tenant;
 
@@ -16,7 +16,7 @@ public class RouteRepository : BaseRepository<Route>
         _tenant = tenant;
     }
 
-    public async Task<List<Route>> GetAllByTenantAsync()
+    public async Task<List<TripRoute>> GetAllByTenantAsync()
     {
         var tenantId = _tenant.GetTenantId();
 
@@ -29,7 +29,7 @@ public class RouteRepository : BaseRepository<Route>
             .ToListAsync();
     }
 
-    public async Task<Route?> GetByIdAsync(Guid id)
+    public async Task<TripRoute?> GetByIdAsync(Guid id)
     {
         var tenantId = _tenant.GetTenantId();
 

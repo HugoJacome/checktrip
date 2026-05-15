@@ -1,4 +1,4 @@
-﻿using CheckTrip.Web.Data.Entities;
+﻿namespace CheckTrip.Web.Data.Entities;
 
 public class ReservationComment : BaseEntity
 {
@@ -11,4 +11,5 @@ public class ReservationComment : BaseEntity
     public string? PaymentStatus { get; set; }
 
     public Guid CreatedByUserId { get; set; }
+    public User CreatedByUser { get; set; } = default!;
 }

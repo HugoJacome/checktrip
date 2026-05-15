@@ -5,42 +5,126 @@
 
 <MudDialog>
     <DialogContent>
-
         <MudStack Spacing="3">
-
             <MudText Typo="Typo.subtitle1">
                 Datos de la agencia
             </MudText>
 
             <MudForm @ref="_form">
+                <MudGrid Spacing="3">
+                    <MudItem xs="12" md="8">
+                        <MudTextField T="string"
+                                      Label="Nombre"
+                                      @bind-Value="_model.Name"
+                                      Required="true"
+                                      RequiredError="El nombre es obligatorio."
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
-                <MudStack Spacing="3">
+                    <MudItem xs="12" md="4">
+                        <MudTextField T="string"
+                                      Label="RUC"
+                                      @bind-Value="_model.Ruc"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
-                    <MudTextField T="string"
-                                  Label="Nombre"
-                                  @bind-Value="_model.Name"
-                                  Required="true"
-                                  RequiredError="El nombre es obligatorio."
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" />
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Tipo"
+                                      @bind-Value="_model.Type"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
-                    <MudTextField T="string"
-                                  Label="RUC"
-                                  @bind-Value="_model.Ruc"
-                                  Variant="Variant.Outlined"
-                                  Margin="Margin.Dense" />
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Teléfono"
+                                      @bind-Value="_model.Phone"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
-                    <MudCheckBox T="bool"
-                                 Label="Activo"
-                                 @bind-Value="_model.IsActive"
-                                 Color="Color.Primary" />
+                    <MudItem xs="12">
+                        <MudTextField T="string"
+                                      Label="Dirección"
+                                      @bind-Value="_model.Address"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
-                </MudStack>
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Email"
+                                      @bind-Value="_model.Email"
+                                      InputType="InputType.Email"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
 
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Persona de contacto"
+                                      @bind-Value="_model.ContactPerson"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Teléfono contacto"
+                                      @bind-Value="_model.ContactPhone"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudCheckBox T="bool"
+                                     Label="Activo"
+                                     @bind-Value="_model.IsActive"
+                                     Color="Color.Primary" />
+                    </MudItem>
+                </MudGrid>
+                <MudDivider Class="my-4" />
+
+                <MudText Typo="Typo.subtitle1">
+                    Rutas disponibles
+                </MudText>
+
+                <MudTable Items="_model.Routes"
+                          Dense="true"
+                          Hover="true"
+                          Bordered="true">
+                    <HeaderContent>
+                        <MudTh>Asignar</MudTh>
+                        <MudTh>Ruta</MudTh>
+                        <MudTh>Valor agencia</MudTh>
+                    </HeaderContent>
+
+                    <RowTemplate>
+                        <MudTd>
+                            <MudCheckBox T="bool"
+                                         @bind-Value="context.IsSelected"
+                                         Color="Color.Primary" />
+                        </MudTd>
+
+                        <MudTd>@context.RouteName</MudTd>
+
+                        <MudTd>
+                            <MudNumericField T="decimal"
+                                             @bind-Value="context.Value"
+                                             Disabled="@(!context.IsSelected)"
+                                             Min="0"
+                                             Variant="Variant.Outlined"
+                                             Margin="Margin.Dense"
+                                             Adornment="Adornment.Start"
+                                             AdornmentText="$" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
             </MudForm>
-
         </MudStack>
-
     </DialogContent>
 
     <DialogActions>
@@ -80,6 +164,10 @@
 
             if (data is not null)
                 _model = data;
+        }
+        else
+        {
+            _model = await Service.NewAsync();
         }
     }
 
