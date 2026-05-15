@@ -466,28 +466,26 @@ public class ReservationService
         if (model.Passengers.Any(x => !x.Outbound && !x.Return))
             throw new Exception("Cada pasajero debe tener ida, retorno o ambos.");
 
-        if (model.Passengers.Any(x => string.IsNullOrWhiteSpace(x.DocumentNumber)))
-            throw new Exception("Todos los pasajeros deben tener documento.");
-
-        if (model.Passengers.Any(x => string.IsNullOrWhiteSpace(x.FullName)))
-            throw new Exception("Todos los pasajeros deben tener nombres.");
-
         if (!model.OutboundRouteScheduleId.HasValue || !model.OutboundDate.HasValue)
             throw new Exception("Debe seleccionar viaje y fecha de la reserva.");
 
-        var duplicatedDocuments = model.Passengers
-            .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
-            .GroupBy(x => x.DocumentNumber.Trim().ToUpper())
-            .Where(x => x.Count() > 1)
-            .Select(x => x.Key)
-            .ToList();
-
-        if (duplicatedDocuments.Any())
-            throw new Exception($"Existen documentos duplicados: {string.Join(", ", duplicatedDocuments)}.");
-
         foreach (var passenger in model.Passengers)
         {
+            NormalizeGenericPassenger(passenger);
+
             passenger.PassengerType = NormalizePassengerType(passenger.PassengerType);
+
+            if (!passenger.IsGenericPassenger)
+            {
+                if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+                    throw new Exception("Todos los pasajeros deben tener documento.");
+
+                if (string.IsNullOrWhiteSpace(passenger.FullName))
+                    throw new Exception("Todos los pasajeros deben tener nombres.");
+            }
+
+            if (string.IsNullOrWhiteSpace(passenger.FullName))
+                passenger.FullName = "Pasajero genérico";
 
             if (!passenger.Age.HasValue || passenger.Age.Value < 0)
                 throw new Exception($"El pasajero {passenger.FullName} debe tener una edad válida.");
@@ -497,36 +495,66 @@ public class ReservationService
 
             if (passenger.Return && !passenger.ReturnDate.HasValue)
                 passenger.ReturnDate = model.OutboundDate;
-
-            if (passenger.PassengerType == "Infant")
-            {
-                if (!passenger.Age.HasValue)
-                    throw new Exception($"El infante {passenger.FullName} debe tener Edad.");
-
-                if (passenger.Age > 1)
-                    throw new Exception($"El pasajero {passenger.FullName} no puede ser infante porque tiene más de 1 año.");
-            }
         }
+
+        var duplicatedDocuments = model.Passengers
+            .Where(x => !x.IsGenericPassenger)
+            .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
+            .GroupBy(x => x.DocumentNumber.Trim().ToUpper())
+            .Where(x => x.Count() > 1)
+            .Select(x => x.Key)
+            .ToList();
+
+        if (duplicatedDocuments.Any())
+            throw new Exception($"Existen documentos duplicados: {string.Join(", ", duplicatedDocuments)}.");
 
         await Task.CompletedTask;
     }
 
     private async Task<Customer> GetOrCreateCustomerAsync(
-        ReservationPassengerModel passenger,
-        Guid tenantId)
+    ReservationPassengerModel passenger,
+    Guid tenantId)
     {
-        var document = passenger.DocumentNumber.Trim();
-        var fullName = passenger.FullName.Trim();
+        NormalizeGenericPassenger(passenger);
 
-        var customer = await _repo.GetCustomerByDocumentAsync(document);
+        var fullName = string.IsNullOrWhiteSpace(passenger.FullName)
+            ? "Pasajero genérico"
+            : passenger.FullName.Trim();
 
         var age = passenger.Age;
+
+        if (passenger.IsGenericPassenger)
+        {
+            var genericCustomer = new Customer
+            {
+                TenantId = tenantId,
+                DocumentType = "Generico",
+                DocumentNumber = string.IsNullOrWhiteSpace(passenger.DocumentNumber)
+                    ? GenerateGenericPassengerDocument()
+                    : passenger.DocumentNumber.Trim(),
+                FullName = fullName,
+                Nationality = string.IsNullOrWhiteSpace(passenger.Nationality)
+                    ? "Ecuatoriana"
+                    : passenger.Nationality,
+                Age = age ?? 18,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Customers.Add(genericCustomer);
+
+            return genericCustomer;
+        }
+
+        var document = passenger.DocumentNumber.Trim();
+
+        var customer = await _repo.GetCustomerByDocumentAsync(document);
 
         if (customer is not null)
         {
             customer.DocumentType = passenger.DocumentType;
             customer.FullName = fullName;
-            customer.Nationality = passenger.Nationality; 
+            customer.Nationality = passenger.Nationality;
             customer.Age = age;
             return customer;
         }
@@ -732,7 +760,8 @@ public class ReservationService
                 Outbound = x.OutboundRouteScheduleId.HasValue,
                 Return = x.ReturnRouteScheduleId.HasValue,
                 ReturnDate = x.ReturnTravelDate?.ToDateTime(TimeOnly.MinValue),
-                IsCancelled = x.Status == "Cancelled"
+                IsCancelled = x.Status == "Cancelled",
+                IsGenericPassenger = x.Customer.DocumentType == "Generico"
             }).ToList()
         };
     }
@@ -1473,5 +1502,34 @@ public class ReservationService
             throw new Exception("El usuario autenticado no existe en la tabla Users.");
 
         return user.UserId;
+    }
+    private static void NormalizeGenericPassenger(ReservationPassengerModel passenger)
+    {
+        if (!passenger.IsGenericPassenger)
+            return;
+
+        passenger.DocumentType = "Generico";
+
+        if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+            passenger.DocumentNumber = GenerateGenericPassengerDocument();
+
+        if (string.IsNullOrWhiteSpace(passenger.FullName))
+            passenger.FullName = "Pasajero genérico";
+
+        if (string.IsNullOrWhiteSpace(passenger.Nationality))
+            passenger.Nationality = "Ecuatoriana";
+
+        passenger.Age ??= 18;
+
+        if (string.IsNullOrWhiteSpace(passenger.PassengerType))
+            passenger.PassengerType = "Adult";
+
+        passenger.IsNewCustomer = true;
+        passenger.CustomerChanged = true;
+    }
+
+    private static string GenerateGenericPassengerDocument()
+    {
+        return $"GEN-{Guid.NewGuid():N}"[..12].ToUpperInvariant();
     }
 }

@@ -5,30 +5,32 @@
 
 @inject TicketService TicketService
 @inject INotificationService Notifications
-@inject IDialogService DialogService
 
 <MudDialog>
     <DialogContent>
         <MudStack Spacing="3">
             <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                <MudText Typo="Typo.h6">Boletos</MudText>
+                <MudText Typo="Typo.h6">Boletos de la reserva</MudText>
 
                 <MudButton Variant="Variant.Filled"
                            Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.ConfirmationNumber"
+                           Disabled="_loading"
                            OnClick="Generate">
                     Generar boletos
                 </MudButton>
             </MudStack>
 
-            <MudTable Items="_tickets" Dense="true" Hover="true" Bordered="true">
+            <MudTable Items="_tickets" Dense="true" Hover="true" Bordered="true" Loading="_loading">
                 <HeaderContent>
                     <MudTh>Boleto</MudTh>
                     <MudTh>Documento</MudTh>
                     <MudTh>Pasajero</MudTh>
                     <MudTh>Viaje</MudTh>
+                    <MudTh>Tipo</MudTh>
                     <MudTh>Impreso</MudTh>
                     <MudTh>Reimp.</MudTh>
-                    <MudTh></MudTh>
+                    <MudTh>Acciones</MudTh>
                 </HeaderContent>
 
                 <RowTemplate>
@@ -37,7 +39,16 @@
                     <MudTd>@context.PassengerName</MudTd>
                     <MudTd>@context.TripType</MudTd>
                     <MudTd>
-                        <MudChip T="string" Color="@(context.IsPrinted ? Color.Success : Color.Warning)">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.IsGeneric ? Color.Warning : Color.Info)">
+                            @(context.IsGeneric ? "Genérico" : "Reserva")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.IsPrinted ? Color.Success : Color.Warning)">
                             @(context.IsPrinted ? "Sí" : "No")
                         </MudChip>
                     </MudTd>
@@ -45,6 +56,8 @@
                     <MudTd>
                         <MudButton Size="Size.Small"
                                    Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   Disabled="_loading"
                                    OnClick="@(() => MarkPrinted(context.Id))">
                             @(context.IsPrinted ? "Reimprimir" : "Imprimir")
                         </MudButton>
@@ -65,9 +78,11 @@
 
 @code {
     [Parameter] public Guid ReservationId { get; set; }
+
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
     private List<TicketListItem> _tickets = [];
+    private bool _loading;
 
     protected override async Task OnInitializedAsync()
     {
@@ -76,13 +91,23 @@
 
     private async Task Load()
     {
-        _tickets = await TicketService.GetByReservationAsync(ReservationId);
+        _loading = true;
+
+        try
+        {
+            _tickets = await TicketService.GetByReservationAsync(ReservationId);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task Generate()
     {
         try
         {
+            _loading = true;
             await TicketService.GenerateForReservationAsync(ReservationId);
             Notifications.Success("Boletos generados correctamente.");
             await Load();
@@ -91,12 +116,17 @@
         {
             Notifications.Error(ex.Message);
         }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task MarkPrinted(Guid ticketId)
     {
         try
         {
+            _loading = true;
             await TicketService.MarkPrintedAsync(ticketId);
             Notifications.Success("Boleto actualizado correctamente.");
             await Load();
@@ -104,6 +134,10 @@
         catch (Exception ex)
         {
             Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
         }
     }
 

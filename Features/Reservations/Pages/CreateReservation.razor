@@ -367,6 +367,11 @@
             <MudText Typo="Typo.h6">Listado de pasajeros</MudText>
 
             <MudStack Row="true" Spacing="2">
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Secondary"
+                           OnClick="AddGenericPassenger">
+                    Agregar genérico
+                </MudButton>
                 <MudButton Variant="Variant.Outlined" OnClick="AddPassengerDialog">
                     Buscar / registrar
                 </MudButton>
@@ -411,14 +416,17 @@
                     <MudTextField T="string"
                                   Value="context.DocumentNumber"
                                   ValueChanged="@((string value) => OnPassengerDocumentChangedAsync(context, value))"
-                                  Dense="true" />
+                                  Dense="true"
+                                  Disabled="@context.IsGenericPassenger"
+                                  Placeholder="@(context.IsGenericPassenger ? "GENÉRICO" : null)" />
                 </MudTd>
 
                 <MudTd>
                     <MudTextField T="string"
                                   Value="context.FullName"
                                   ValueChanged="@((string value) => OnPassengerFullNameChanged(context, value))"
-                                  Dense="true" />
+                                  Dense="true"
+                                  Placeholder="@(context.IsGenericPassenger ? "Pasajero genérico" : null)" />
                 </MudTd>
 
                 <MudTd>
@@ -527,6 +535,8 @@
     private bool _isEditMode => ReservationId.HasValue && ReservationId.Value != Guid.Empty;
     private bool IsEditMode => ReservationId.HasValue;
     private string PageTitle => _isEditMode ? "Editar reserva" : "Nueva reserva";
+    private DateTime? CurrentOutboundDate =>
+    _model.OutboundDate?.Date ?? _selectedTrip?.TravelDate.Date;
 
     private void BackToMonitor()
     {
@@ -845,10 +855,9 @@
 
         if (value)
         {
-            if (_model.OutboundDate.HasValue)
-                passenger.ReturnDate = _model.OutboundDate.Value.Date;
-            else
-                passenger.ReturnDate = DateTime.Today;
+            passenger.ReturnDate = _model.OutboundDate?.Date
+                                   ?? _selectedTrip?.TravelDate.Date
+                                   ?? DateTime.Today;
         }
         else
         {
@@ -864,17 +873,18 @@
             return;
         }
 
-        if (!_model.OutboundDate.HasValue)
+        var outboundDate = CurrentOutboundDate;
+
+        if (!outboundDate.HasValue)
         {
-            Notifications.Error("Primero seleccione la fecha de ida.");
-            passenger.ReturnDate = null;
+            passenger.ReturnDate = value?.Date;
             return;
         }
 
-        if (value.HasValue && value.Value.Date < _model.OutboundDate.Value.Date)
+        if (value.HasValue && value.Value.Date < outboundDate.Value.Date)
         {
             Notifications.Error("La fecha de retorno no puede ser menor a la fecha de ida.");
-            passenger.ReturnDate = _model.OutboundDate.Value.Date;
+            passenger.ReturnDate = outboundDate.Value.Date;
             return;
         }
 
@@ -895,11 +905,15 @@
 
     private bool IsDuplicatedDocument(string? documentNumber, ReservationPassengerModel current)
     {
+        if (current.IsGenericPassenger)
+            return false;
+
         if (string.IsNullOrWhiteSpace(documentNumber))
             return false;
 
         return _model.Passengers.Any(x =>
             !ReferenceEquals(x, current) &&
+            !x.IsGenericPassenger &&
             !string.IsNullOrWhiteSpace(x.DocumentNumber) &&
             x.DocumentNumber.Trim().Equals(documentNumber.Trim(), StringComparison.OrdinalIgnoreCase));
     }
@@ -1333,6 +1347,7 @@
         if (_model.OutboundDate.Value.Date < DateTime.Today)
             throw new Exception("Solo puede registrar reservas desde el día actual en adelante.");
         var duplicates = _model.Passengers
+            .Where(x => !x.IsGenericPassenger)
             .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
             .GroupBy(x => x.DocumentNumber.Trim(), StringComparer.OrdinalIgnoreCase)
             .Where(x => x.Count() > 1)
@@ -1344,6 +1359,28 @@
 
         foreach (var passenger in _model.Passengers)
         {
+            if (passenger.IsGenericPassenger)
+            {
+                if (string.IsNullOrWhiteSpace(passenger.FullName))
+                    passenger.FullName = "Pasajero genérico";
+
+                if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
+                    passenger.DocumentNumber = $"GEN-{Guid.NewGuid():N}"[..12];
+
+                if (string.IsNullOrWhiteSpace(passenger.DocumentType))
+                    passenger.DocumentType = "Generico";
+
+                if (string.IsNullOrWhiteSpace(passenger.Nationality))
+                    passenger.Nationality = "Ecuatoriana";
+
+                if (passenger.Age is null)
+                    passenger.Age = 18;
+
+                if (string.IsNullOrWhiteSpace(passenger.PassengerType))
+                    passenger.PassengerType = "Adult";
+
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(passenger.DocumentNumber))
                 throw new Exception("Todos los pasajeros deben tener identificación.");
 
@@ -1597,6 +1634,7 @@
     {
         passenger.ReservationItemId = null;
         passenger.CustomerId = null;
+        passenger.IsGenericPassenger = false;
         passenger.DocumentType = "Cedula";
         passenger.DocumentNumber = string.Empty;
         passenger.FullName = string.Empty;
@@ -1609,5 +1647,28 @@
         passenger.IsCancelled = false;
         passenger.IsNewCustomer = true;
         passenger.CustomerChanged = true;
+    }
+    private void AddGenericPassenger()
+    {
+        var passenger = new ReservationPassengerModel
+        {
+            IsGenericPassenger = true,
+            DocumentType = "Generico",
+            DocumentNumber = $"GEN-{Guid.NewGuid():N}"[..12],
+            FullName = "Pasajero genérico",
+            Nationality = "Ecuatoriana",
+            Age = 18,
+            PassengerType = "Adult",
+            Outbound = true,
+            Return = false,
+            ReturnDate = null,
+            IsNewCustomer = true,
+            CustomerChanged = true
+        };
+
+        _model.Passengers.Add(passenger);
+        SyncPassengerCountersFromList();
+
+        Notifications.Success("Pasajero genérico agregado.");
     }
 }

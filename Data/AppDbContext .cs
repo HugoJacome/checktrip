@@ -35,6 +35,7 @@ public class AppDbContext : DbContext
     public DbSet<AgencyRouteRate> AgencyRouteRates => Set<AgencyRouteRate>();
     public DbSet<SellerRouteCommission> SellerRouteCommissions => Set<SellerRouteCommission>(); 
     public DbSet<CrewMember> CrewMembers => Set<CrewMember>();
+    public DbSet<BoatDailyTrip> BoatDailyTrips => Set<BoatDailyTrip>();
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -605,10 +606,45 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.ReservationItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(x => x.PrintedByUser)
+            entity.HasOne(x => x.ReservationItem)
                 .WithMany()
-                .HasForeignKey(x => x.PrintedByUserId)
+                .HasForeignKey(x => x.ReservationItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Boat)
+                .WithMany()
+                .HasForeignKey(x => x.BoatId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<BoatDailyTrip>(entity =>
+        {
+            entity.ToTable("BoatDailyTrips");
+
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.TenantId);
+            entity.HasIndex(x => new { x.TenantId, x.BoatId, x.TripDate }).IsUnique();
+
+            entity.Property(x => x.Status)
+                .HasMaxLength(30)
+                .IsRequired();
+
+            entity.Property(x => x.DocumentNumber)
+                .HasMaxLength(50);
+
+            entity.Property(x => x.DocumentPath)
+                .HasMaxLength(500);
+
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Boat)
+                .WithMany()
+                .HasForeignKey(x => x.BoatId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

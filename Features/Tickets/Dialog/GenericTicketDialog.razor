@@ -1,0 +1,120 @@
+﻿@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject TicketService TicketService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.h6">Crear boleto genérico</MudText>
+
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Este boleto no queda asociado a una reserva. Se registra directamente para el bote y fecha seleccionados.
+            </MudAlert>
+
+            <MudForm @ref="_form">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudTextField T="string"
+                                      Label="Nombre del pasajero"
+                                      @bind-Value="_passengerName"
+                                      Required="true"
+                                      RequiredError="El nombre del pasajero es obligatorio."
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField T="string"
+                                      Label="Documento"
+                                      @bind-Value="_documentNumber"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="string"
+                                   Label="Tipo de boleto"
+                                   @bind-Value="_ticketType"
+                                   Required="true"
+                                   RequiredError="El tipo de boleto es obligatorio."
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+                            <MudSelectItem Value="@("Outbound")">Ida</MudSelectItem>
+                            <MudSelectItem Value="@("Return")">Retorno</MudSelectItem>
+                            <MudSelectItem Value="@("Generic")">Genérico</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">
+            Cancelar
+        </MudButton>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   Disabled="_saving"
+                   OnClick="Save">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid BoatId { get; set; }
+    [Parameter] public DateTime TripDate { get; set; }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private MudForm? _form;
+    private bool _saving;
+
+    private string _passengerName = string.Empty;
+    private string? _documentNumber;
+    private string _ticketType = "Generic";
+
+    private async Task Save()
+    {
+        if (_form is null)
+            return;
+
+        await _form.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        try
+        {
+            _saving = true;
+
+            await TicketService.CreateGenericTicketAsync(
+                BoatId,
+                TripDate.Date,
+                _passengerName.Trim(),
+                string.IsNullOrWhiteSpace(_documentNumber) ? null : _documentNumber.Trim(),
+                _ticketType);
+
+            Notifications.Success("Boleto genérico creado correctamente.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

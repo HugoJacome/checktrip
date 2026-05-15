@@ -68,4 +68,34 @@ public class TicketRepository : BaseRepository<Ticket>
             x.TenantId == tenantId &&
             x.CreatedAt.Date == today);
     }
+    public async Task<List<Ticket>> GetByBoatAndDateAsync(Guid boatId, DateTime tripDate)
+    {
+        var tenantId = _tenant.GetTenantId();
+        var date = tripDate.Date;
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets
+            .AsNoTracking()
+            .Include(x => x.ReservationItem!)
+                .ThenInclude(x => x.Customer)
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.BoatId == boatId &&
+                x.TripDate.HasValue &&
+                x.TripDate.Value.Date == date)
+            .OrderBy(x => x.TicketNumber)
+            .ToListAsync();
+    }
+
+    public async Task<int> CountTicketsByDateAsync(DateTime date)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.Tickets.CountAsync(x =>
+            x.TenantId == tenantId &&
+            x.CreatedAt.Date == date.Date);
+    }
 }

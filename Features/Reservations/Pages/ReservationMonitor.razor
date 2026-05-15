@@ -1,30 +1,33 @@
 ﻿@page "/reservations/monitor"
-@inject NavigationManager Navigation
 
 @using CheckAccess.Features.Security
-@using CheckAccess.Features.Tickets.Pages
+@using CheckAccess.Features.Tickets.Dialog
 @using CheckTrip.Web.Features.Reservations.Models
 @using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Features.Tickets.Models
+@using CheckTrip.Web.Features.Tickets.Services
 @using CheckTrip.Web.Infrastructure.Notifications
 @using MudBlazor
 
-@inject ReservationService Service
-@inject AgencyService AgencyService
+@inject NavigationManager Navigation
+@inject BoatService BoatService
+@inject TicketService TicketService
+@inject BoatDailyTripService BoatDailyTripService
 @inject IDialogService Dialog
 @inject INotificationService Notifications
 
 <RequirePermission ResourceCode="reservations.monitor">
     <MudStack Spacing="3">
+
         <MudStack Row="true"
                   AlignItems="AlignItems.Center"
-                  Justify="Justify.SpaceBetween"
-                  Class="mb-2">
-
-            <MudText Typo="Typo.h5">Monitor de Reservas</MudText>
+                  Justify="Justify.SpaceBetween">
+            <MudText Typo="Typo.h5">Monitor de Viaje</MudText>
 
             <MudButton Variant="Variant.Outlined"
                        Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Add"
+                       Disabled="@_isLocked"
                        OnClick="@(() => Navigation.NavigateTo("/reservations/create"))">
                 Nueva reserva
             </MudButton>
@@ -32,143 +35,229 @@
 
         <MudPaper Class="pa-4">
             <MudGrid>
-                <MudItem xs="12" md="3">
-                    <MudDatePicker Label="Desde" @bind-Date="_dateFrom" />
+                <MudItem xs="12" md="4">
+                    <MudDatePicker Label="Fecha del viaje"
+                                   @bind-Date="_tripDate"
+                                   DateFormat="yyyy-MM-dd" />
                 </MudItem>
 
-                <MudItem xs="12" md="3">
-                    <MudDatePicker Label="Hasta" @bind-Date="_dateTo" />
-                </MudItem>
-
-                <MudItem xs="12" md="2">
-                    <MudSelect T="string" Label="Estado" @bind-Value="_status">
-                        <MudSelectItem Value="@("")">Todos</MudSelectItem>
-                        <MudSelectItem Value="@("Active")">Activa</MudSelectItem>
-                        <MudSelectItem Value="@("Cancelled")">Cancelada</MudSelectItem>
-                        <MudSelectItem Value="@("Finished")">Finalizada</MudSelectItem>
+                <MudItem xs="12" md="5">
+                    <MudSelect T="Guid?"
+                               Label="Bote"
+                               @bind-Value="_boatId"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        @foreach (var boat in _boats)
+                        {
+                            <MudSelectItem Value="@((Guid?)boat.Id)">
+                                @boat.Name
+                            </MudSelectItem>
+                        }
                     </MudSelect>
                 </MudItem>
 
-                @* <MudItem xs="12" md="2">
-                    <MudSelect T="string" Label="Pago" @bind-Value="_paymentStatus">
-                        <MudSelectItem Value="@("")">Todos</MudSelectItem>
-                        <MudSelectItem Value="@("Pending")">Pendiente</MudSelectItem>
-                        <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
-                        <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
-                    </MudSelect>
-                </MudItem> *@
-
-                <MudItem xs="12" md="2">
+                <MudItem xs="12" md="3" Class="d-flex align-end">
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
-                               OnClick="Load"
-                               Class="mt-4">
-                        Buscar
+                               FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Search"
+                               OnClick="LoadTrip">
+                        Consultar
                     </MudButton>
                 </MudItem>
             </MudGrid>
         </MudPaper>
 
-        <MudTable Items="_filteredItems" Dense="true" Hover="true" Bordered="true">
-            <HeaderContent>
-                <MudTh>Código</MudTh>
-                <MudTh>Fecha</MudTh>
-                <MudTh>Agencia</MudTh>
-                <MudTh>Vendedor</MudTh>
-                @* <MudTh>Pago</MudTh> *@
-                <MudTh>Pasajeros</MudTh>
-                <MudTh>Acciones</MudTh>
-            </HeaderContent>
+        @if (_tripLoaded)
+        {
+            <MudPaper Class="pa-4">
+                <MudStack Row="true"
+                          AlignItems="AlignItems.Center"
+                          Justify="Justify.SpaceBetween">
+                    <MudStack Spacing="1">
+                        <MudText Typo="Typo.h6">@_selectedBoatName</MudText>
+                        <MudText Typo="Typo.body2">
+                            Fecha: @_tripDate?.ToString("yyyy-MM-dd")
+                        </MudText>
 
-            <RowTemplate>
-                <MudTd>@context.ReservationCode</MudTd>
-                <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
-                <MudTd>@context.Agency</MudTd>
-                <MudTd>@context.Seller</MudTd>
-               @*  <MudTd>
-                    <MudSelect T="string"
-                               Dense="true"
-                               Value="context.PaymentStatus"
-                               ValueChanged="@((string value) => ChangePayment(context.Id, value))">
-                        <MudSelectItem Value="@("Pending")">Pendiente</MudSelectItem>
-                        <MudSelectItem Value="@("Partial")">Parcial</MudSelectItem>
-                        <MudSelectItem Value="@("Paid")">Pagado</MudSelectItem>
-                    </MudSelect>
-                </MudTd> *@
-                <MudTd>@context.PassengerCount</MudTd>
-                <MudTd>
-                    <MudButton Size="Size.Small"
-                               Variant="Variant.Text"
-                               OnClick="@(() => Detail(context.Id))">
-                        Ver
-                    </MudButton>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@GetTripStatusColor(_tripStatus)">
+                            @GetTripStatusText(_tripStatus)
+                        </MudChip>
 
-                    <MudButton Size="Size.Small"
-                               Color="Color.Error"
-                               Variant="Variant.Text"
-                               Disabled="@(context.Status == "Cancelled" || context.Status == "Finished")"
-                               OnClick="@(() => Cancel(context.Id))">
-                        Cancelar
-                    </MudButton>
-                    <MudButton Size="Size.Small"
-                               Variant="Variant.Text"
-                               Color="Color.Primary"
-                               Disabled="@(context.Status == "Cancelled")"
-                               OnClick="@(() => Tickets(context.Id))">
-                        Boletos
-                    </MudButton>
-                </MudTd>
-            </RowTemplate>
+                        @if (!string.IsNullOrWhiteSpace(_documentNumber))
+                        {
+                            <MudText Typo="Typo.body2">
+                                Documento: @_documentNumber
+                            </MudText>
+                        }
+                    </MudStack>
 
-            <NoRecordsContent>
-                <MudText>No existen reservas con los filtros seleccionados.</MudText>
-            </NoRecordsContent>
-        </MudTable>
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Disabled="@_isLocked"
+                                   StartIcon="@Icons.Material.Filled.ConfirmationNumber"
+                                   OnClick="GenerateTickets">
+                            Generar boletos
+                        </MudButton>
+
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   Disabled="@_isLocked"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="OpenGenericTicket">
+                            Boleto genérico
+                        </MudButton>
+
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   Disabled="@_isLocked"
+                                   StartIcon="@Icons.Material.Filled.Description"
+                                   OnClick="GenerateTripDocument">
+                            Generar documento
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+
+            @if (_isLocked)
+            {
+                <MudAlert Severity="Severity.Warning">
+                    Este viaje ya tiene documento generado o está cerrado. No se pueden agregar más reservas ni boletos.
+                </MudAlert>
+            }
+
+            <MudTable Items="_tickets" Dense="true" Hover="true" Bordered="true" Loading="_loading">
+                <HeaderContent>
+                    <MudTh>Boleto</MudTh>
+                    <MudTh>Documento</MudTh>
+                    <MudTh>Pasajero</MudTh>
+                    <MudTh>Viaje</MudTh>
+                    <MudTh>Tipo</MudTh>
+                    <MudTh>Impreso</MudTh>
+                    <MudTh>Reimp.</MudTh>
+                    <MudTh>Acciones</MudTh>
+                </HeaderContent>
+
+                <RowTemplate>
+                    <MudTd>@context.TicketNumber</MudTd>
+                    <MudTd>@context.DocumentNumber</MudTd>
+                    <MudTd>@context.PassengerName</MudTd>
+                    <MudTd>@context.TripType</MudTd>
+                    <MudTd>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.IsGeneric ? Color.Warning : Color.Info)">
+                            @(context.IsGeneric ? "Genérico" : "Reserva")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@(context.IsPrinted ? Color.Success : Color.Warning)">
+                            @(context.IsPrinted ? "Sí" : "No")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd>@context.ReprintCount</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small"
+                                   Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   OnClick="@(() => MarkPrinted(context.Id))">
+                            @(context.IsPrinted ? "Reimprimir" : "Imprimir")
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+
+                <NoRecordsContent>
+                    <MudText>No existen boletos para este bote y fecha.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        }
     </MudStack>
 </RequirePermission>
 
 @code {
-    private List<ReservationMonitorItem> _items = [];
-    private List<ReservationMonitorItem> _filteredItems = [];
+    private List<BoatListItem> _boats = [];
+    private List<TicketListItem> _tickets = [];
+    private DateTime? _tripDate = DateTime.UtcNow.Date;
+    private Guid? _boatId;
 
-    private DateTime? _dateFrom = DateTime.Today;
-    private DateTime? _dateTo = DateTime.Today;
-    private string _status = "";
-    private string _paymentStatus = "";
+    private bool _loading;
+    private bool _tripLoaded;
+    private bool _isLocked;
+
+    private string _tripStatus = BoatDailyTripStatus.Open;
+    private string? _documentNumber;
+    private string _selectedBoatName = "";
 
     protected override async Task OnInitializedAsync()
     {
-        await Load();
+        _boats = await BoatService.GetAllAsync();
     }
-
-    private async Task Load()
+    private static DateTime ToUtcDate(DateTime date)
     {
-        _items = await Service.GetMonitorAsync();
-
-        _filteredItems = _items
-            .Where(x => !_dateFrom.HasValue || x.CreatedAt.Date >= _dateFrom.Value.Date)
-            .Where(x => !_dateTo.HasValue || x.CreatedAt.Date <= _dateTo.Value.Date)
-            .Where(x => string.IsNullOrWhiteSpace(_status) || x.Status == _status)
-            .Where(x => string.IsNullOrWhiteSpace(_paymentStatus) || x.PaymentStatus == _paymentStatus)
-            .ToList();
+        return DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
     }
-
-    private void Detail(Guid id)
+    private async Task LoadTrip()
     {
-        var returnUrl =
-            $"/reservations/monitor?from={_dateFrom:yyyy-MM-dd}&to={_dateTo:yyyy-MM-dd}&status={_status}&payment={_paymentStatus}";
+        if (!_boatId.HasValue)
+        {
+            Notifications.Warning("Seleccione un bote.");
+            return;
+        }
 
-        Navigation.NavigateTo(
-            $"/reservations/create/{id}?returnUrl={Uri.EscapeDataString(returnUrl)}");
-    }
+        if (!_tripDate.HasValue)
+        {
+            Notifications.Warning("Seleccione la fecha del viaje.");
+            return;
+        }
 
-    private async Task ChangePayment(Guid id, string value)
-    {
+        _loading = true;
+
         try
         {
-            await Service.ChangePaymentStatusAsync(id, value);
-            Notifications.Success("Estado de pago actualizado.");
-            await Load();
+            var tripDateUtc = ToUtcDate(_tripDate.Value);
+
+            var trip = await BoatDailyTripService.GetOrCreateAsync(_boatId.Value, tripDateUtc);
+
+            _tripStatus = trip.Status;
+            _isLocked = trip.IsLocked;
+            _documentNumber = trip.DocumentNumber;
+            _selectedBoatName = _boats.FirstOrDefault(x => x.Id == _boatId.Value)?.Name ?? "";
+
+            _tickets = await TicketService.GetMonitorByBoatAndDateAsync(_boatId.Value, tripDateUtc);
+
+            _tripLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task GenerateTickets()
+    {
+        if (!_boatId.HasValue || !_tripDate.HasValue)
+            return;
+
+        if (_isLocked)
+        {
+            Notifications.Warning("El viaje ya está bloqueado.");
+            return;
+        }
+
+        try
+        {
+            await TicketService.GenerateForBoatAndDateAsync(_boatId.Value, _tripDate.Value);
+            Notifications.Success("Boletos generados correctamente.");
+            await LoadTrip();
         }
         catch (Exception ex)
         {
@@ -176,13 +265,49 @@
         }
     }
 
-    private async Task Cancel(Guid id)
+    private async Task OpenGenericTicket()
     {
+        if (!_boatId.HasValue || !_tripDate.HasValue)
+            return;
+
+        if (_isLocked)
+        {
+            Notifications.Warning("El viaje ya está bloqueado.");
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            ["BoatId"] = _boatId.Value,
+            ["TripDate"] = _tripDate.Value
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Small,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await Dialog.ShowAsync<GenericTicketDialog>("Boleto genérico", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await LoadTrip();
+    }
+
+    private async Task GenerateTripDocument()
+    {
+        if (!_boatId.HasValue || !_tripDate.HasValue)
+            return;
+
         try
         {
-            await Service.CancelAsync(id, "Cancelado desde monitor");
-            Notifications.Success("Reserva cancelada.");
-            await Load();
+            await TicketService.GenerateForBoatAndDateAsync(_boatId.Value, _tripDate.Value);
+            await BoatDailyTripService.GenerateDocumentAsync(_boatId.Value, _tripDate.Value);
+
+            Notifications.Success("Documento del viaje generado. El viaje quedó bloqueado.");
+            await LoadTrip();
         }
         catch (Exception ex)
         {
@@ -190,13 +315,13 @@
         }
     }
 
-    private async Task Finish(Guid id)
+    private async Task MarkPrinted(Guid ticketId)
     {
         try
         {
-            await Service.FinishAsync(id);
-            Notifications.Success("Reserva finalizada.");
-            await Load();
+            await TicketService.MarkPrintedAsync(ticketId);
+            Notifications.Success("Boleto actualizado correctamente.");
+            await LoadTrip();
         }
         catch (Exception ex)
         {
@@ -204,24 +329,25 @@
         }
     }
 
-    private Color GetStatusColor(string status)
+    private static Color GetTripStatusColor(string status)
     {
         return status switch
         {
-            "Active" => Color.Info,
-            "Cancelled" => Color.Error,
-            "Finished" => Color.Success,
-            "Blocked" => Color.Warning,
+            BoatDailyTripStatus.Open => Color.Info,
+            BoatDailyTripStatus.DocumentGenerated => Color.Warning,
+            BoatDailyTripStatus.Closed => Color.Success,
             _ => Color.Default
         };
     }
-    private async Task Tickets(Guid id)
-    {
-        var parameters = new DialogParameters
-        {
-            ["ReservationId"] = id
-        };
 
-        await Dialog.ShowAsync<TicketsDialog>("Boletos", parameters);
+    private static string GetTripStatusText(string status)
+    {
+        return status switch
+        {
+            BoatDailyTripStatus.Open => "Abierto",
+            BoatDailyTripStatus.DocumentGenerated => "Documento generado",
+            BoatDailyTripStatus.Closed => "Cerrado",
+            _ => status
+        };
     }
 }

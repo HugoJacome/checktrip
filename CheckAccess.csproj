@@ -12,6 +12,7 @@
     <Folder Include="Features\Catalogs\BoatRouteScheduleListItem - Copy\Page\" />
     <Folder Include="Features\Catalogs\BoatRouteScheduleListItem - Copy\Repository\" />
     <Folder Include="Features\Catalogs\BoatRouteScheduleListItem - Copy\Service\" />
+    <Folder Include="Features\Tickets\Pages\" />
     <Folder Include="Shared\" />
   </ItemGroup>
 
