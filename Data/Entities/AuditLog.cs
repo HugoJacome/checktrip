@@ -6,8 +6,8 @@ public class AuditLog
 
     public Guid? TenantId { get; set; }
 
-    public string EntityName { get; set; } = default!;
-    public int EntityId { get; set; } = default!;
+    public string EntityName { get; set; } = default!; 
+    public string? EntityId { get; set; }
     public string Action { get; set; } = default!;
 
     public string? OldValues { get; set; }

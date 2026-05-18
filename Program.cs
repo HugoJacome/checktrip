@@ -60,8 +60,9 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<PermissionService>();
 builder.Services.AddScoped<ReservationRepository>();
-builder.Services.AddScoped<ReservationService>();
+builder.Services.AddScoped<ReservationService>(); 
 builder.Services.AddScoped<BoatDailyTripService>();
+builder.Services.AddScoped<BoatDailyTripRepository>();
 
 builder.Services.AddScoped<INotificationService, NotificationService>();
 

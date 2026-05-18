@@ -1,0 +1,87 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject BoatDailyTripService BoatDailyTripService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudSelect T="string"
+                       Label="Tipo de comentario"
+                       @bind-Value="_model.CommentType">
+                <MudSelectItem Value="@("General")">General</MudSelectItem>
+                <MudSelectItem Value="@("Operation")">Operación</MudSelectItem>
+                <MudSelectItem Value="@("Crew")">Tripulación</MudSelectItem>
+                <MudSelectItem Value="@("Document")">Documento</MudSelectItem>
+                <MudSelectItem Value="@("Incident")">Incidente</MudSelectItem>
+            </MudSelect>
+
+            <MudTextField Label="Comentario"
+                          Lines="4"
+                          @bind-Value="_model.Comment"
+                          Required="true" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid BoatDailyTripId { get; set; }
+
+    private bool _saving;
+
+    private AddBoatDailyTripCommentModel _model = new()
+    {
+        CommentType = "General"
+    };
+
+    protected override void OnInitialized()
+    {
+        _model.BoatDailyTripId = BoatDailyTripId;
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+
+            await BoatDailyTripService.AddCommentAsync(_model);
+
+            Notifications.Success("Comentario guardado.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

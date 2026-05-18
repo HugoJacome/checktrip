@@ -26,16 +26,26 @@ public class AppDbContext : DbContext
 
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Reservation> Reservations => Set<Reservation>();
+
+    // Legacy: mantener temporalmente hasta migrar todo el código.
     public DbSet<ReservationItem> ReservationItems => Set<ReservationItem>();
+    public DbSet<ReservationTripCrew> ReservationTripCrews => Set<ReservationTripCrew>();
+
+    // Nueva lógica por segmento.
+    public DbSet<ReservationPassengerTrip> ReservationPassengerTrips => Set<ReservationPassengerTrip>();
+    public DbSet<BoatDailyTrip> BoatDailyTrips => Set<BoatDailyTrip>();
+    public DbSet<BoatDailyTripCrew> BoatDailyTripCrews => Set<BoatDailyTripCrew>();
+
     public DbSet<ReservationHistory> ReservationHistory => Set<ReservationHistory>();
     public DbSet<ReservationComment> ReservationComments => Set<ReservationComment>();
-    public DbSet<ReservationTripCrew> ReservationTripCrews => Set<ReservationTripCrew>();
     public DbSet<Ticket> Tickets => Set<Ticket>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     public DbSet<AgencyRouteRate> AgencyRouteRates => Set<AgencyRouteRate>();
-    public DbSet<SellerRouteCommission> SellerRouteCommissions => Set<SellerRouteCommission>(); 
-    public DbSet<CrewMember> CrewMembers => Set<CrewMember>();
-    public DbSet<BoatDailyTrip> BoatDailyTrips => Set<BoatDailyTrip>();
+    public DbSet<SellerRouteCommission> SellerRouteCommissions => Set<SellerRouteCommission>();
+    public DbSet<CrewMember> CrewMembers => Set<CrewMember>(); 
+    public DbSet<BoatDailyTripComment> BoatDailyTripComments => Set<BoatDailyTripComment>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -230,7 +240,6 @@ public class AppDbContext : DbContext
         {
             entity.ToTable("Boats");
             entity.HasKey(x => x.Id);
-
             entity.HasIndex(x => x.TenantId);
 
             entity.Property(x => x.Name).HasMaxLength(150).IsRequired();
@@ -241,6 +250,10 @@ public class AppDbContext : DbContext
             entity.Property(x => x.OwnerEmail).HasMaxLength(150);
             entity.Property(x => x.OwnerPhone).HasMaxLength(50);
 
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Schedule>(entity =>
@@ -294,19 +307,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AgencyRouteRate>(entity =>
         {
             entity.ToTable("AgencyRouteRates");
-
             entity.HasKey(x => x.Id);
 
             entity.HasIndex(x => x.TenantId);
             entity.HasIndex(x => x.AgencyId);
             entity.HasIndex(x => x.RouteId);
+            entity.HasIndex(x => new { x.TenantId, x.AgencyId, x.RouteId }).IsUnique();
 
-            entity.HasIndex(x => new { x.TenantId, x.AgencyId, x.RouteId })
-                .IsUnique();
-
-            entity.Property(x => x.Price)
-                .HasPrecision(18, 2)
-                .IsRequired();
+            entity.Property(x => x.Price).HasPrecision(18, 2).IsRequired();
 
             entity.HasOne(x => x.Tenant)
                 .WithMany()
@@ -327,19 +335,14 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<SellerRouteCommission>(entity =>
         {
             entity.ToTable("SellerRouteCommissions");
-
             entity.HasKey(x => x.Id);
 
             entity.HasIndex(x => x.TenantId);
             entity.HasIndex(x => x.SellerId);
             entity.HasIndex(x => x.RouteId);
+            entity.HasIndex(x => new { x.TenantId, x.SellerId, x.RouteId }).IsUnique();
 
-            entity.HasIndex(x => new { x.TenantId, x.SellerId, x.RouteId })
-                .IsUnique();
-
-            entity.Property(x => x.Commission)
-                .HasPrecision(18, 2)
-                .IsRequired();
+            entity.Property(x => x.Commission).HasPrecision(18, 2).IsRequired();
 
             entity.HasOne(x => x.Tenant)
                 .WithMany()
@@ -360,7 +363,6 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<CrewMember>(entity =>
         {
             entity.ToTable("CrewMembers");
-
             entity.HasKey(x => x.Id);
 
             entity.HasIndex(x => x.TenantId);
@@ -379,7 +381,7 @@ public class AppDbContext : DbContext
             entity.HasOne(x => x.Boat)
                 .WithMany(x => x.CrewMembers)
                 .HasForeignKey(x => x.BoatId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 
@@ -442,7 +444,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasMany(x => x.Items)
+            entity.HasMany(x => x.PassengerTrips)
                 .WithOne(x => x.Reservation)
                 .HasForeignKey(x => x.ReservationId)
                 .OnDelete(DeleteBehavior.Cascade);
@@ -451,13 +453,57 @@ public class AppDbContext : DbContext
                 .WithOne(x => x.Reservation)
                 .HasForeignKey(x => x.ReservationId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasMany(x => x.TripCrews)
-                .WithOne(x => x.Reservation)
-                .HasForeignKey(x => x.ReservationId)
-                .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<ReservationPassengerTrip>(entity =>
+        {
+            entity.ToTable("ReservationPassengerTrips");
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.TenantId);
+            entity.HasIndex(x => x.ReservationId);
+            entity.HasIndex(x => x.CustomerId);
+            entity.HasIndex(x => new
+            {
+                x.TenantId,
+                x.BoatRouteScheduleId,
+                x.TravelDate,
+                x.SegmentType,
+                x.Status
+            });
+
+            entity.Property(x => x.SegmentType).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.PassengerType).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.GenericPassengerName).HasMaxLength(200);
+            entity.Property(x => x.GenericDocumentNumber).HasMaxLength(30);
+
+            entity.Property(x => x.UnitPrice).HasPrecision(18, 2);
+            entity.Property(x => x.Discount).HasPrecision(18, 2);
+            entity.Property(x => x.TotalPrice).HasPrecision(18, 2);
+
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Reservation)
+                .WithMany(x => x.PassengerTrips)
+                .HasForeignKey(x => x.ReservationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Customer)
+                .WithMany()
+                .HasForeignKey(x => x.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.BoatRouteSchedule)
+                .WithMany()
+                .HasForeignKey(x => x.BoatRouteScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Legacy temporal
         modelBuilder.Entity<ReservationItem>(entity =>
         {
             entity.ToTable("ReservationItems");
@@ -481,23 +527,13 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(x => x.Reservation)
-                .WithMany(x => x.Items)
+                .WithMany()
                 .HasForeignKey(x => x.ReservationId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(x => x.Customer)
                 .WithMany()
                 .HasForeignKey(x => x.CustomerId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.OutboundRouteSchedule)
-                .WithMany()
-                .HasForeignKey(x => x.OutboundRouteScheduleId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(x => x.ReturnRouteSchedule)
-                .WithMany()
-                .HasForeignKey(x => x.ReturnRouteScheduleId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -555,6 +591,7 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // Legacy temporal
         modelBuilder.Entity<ReservationTripCrew>(entity =>
         {
             entity.ToTable("ReservationTripCrews");
@@ -567,14 +604,73 @@ public class AppDbContext : DbContext
             entity.Property(x => x.TripType).IsRequired();
             entity.Property(x => x.CaptainName).IsRequired();
 
-            entity.HasOne(x => x.Reservation)
-                .WithMany(x => x.TripCrews)
-                .HasForeignKey(x => x.ReservationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
             entity.HasOne(x => x.Boat)
                 .WithMany(x => x.TripCrews)
                 .HasForeignKey(x => x.BoatId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BoatDailyTrip>(entity =>
+        {
+            entity.ToTable("BoatDailyTrips");
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.TenantId);
+            entity.HasIndex(x => new { x.TenantId, x.BoatRouteScheduleId, x.TripDate }).IsUnique();
+
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.DocumentNumber).HasMaxLength(50);
+            entity.Property(x => x.DocumentPath).HasMaxLength(500);
+
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.BoatRouteSchedule)
+                .WithMany()
+                .HasForeignKey(x => x.BoatRouteScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Boat)
+                .WithMany()
+                .HasForeignKey(x => x.BoatId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Route)
+                .WithMany()
+                .HasForeignKey(x => x.RouteId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Schedule)
+                .WithMany()
+                .HasForeignKey(x => x.ScheduleId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(x => x.Crew)
+                .WithOne(x => x.BoatDailyTrip)
+                .HasForeignKey<BoatDailyTripCrew>(x => x.BoatDailyTripId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BoatDailyTripCrew>(entity =>
+        {
+            entity.ToTable("BoatDailyTripCrews");
+            entity.HasKey(x => x.Id);
+
+            entity.HasIndex(x => x.TenantId);
+            entity.HasIndex(x => x.BoatDailyTripId).IsUnique();
+
+            entity.Property(x => x.CaptainName).IsRequired();
+
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(x => x.CreatedByUser)
@@ -589,27 +685,26 @@ public class AppDbContext : DbContext
             entity.HasKey(x => x.Id);
 
             entity.HasIndex(x => x.TenantId);
-            entity.HasIndex(x => x.ReservationItemId);
             entity.HasIndex(x => new { x.TenantId, x.TicketNumber }).IsUnique();
+            entity.HasIndex(x => x.ReservationPassengerTripId);
+            entity.HasIndex(x => x.BoatDailyTripId);
+            entity.HasIndex(x => new { x.TenantId, x.BoatId, x.TripDate });
 
             entity.Property(x => x.TicketNumber).HasMaxLength(50).IsRequired();
             entity.Property(x => x.TicketType).HasMaxLength(30);
             entity.Property(x => x.Color).HasMaxLength(20);
+            entity.Property(x => x.GenericPassengerName).HasMaxLength(200);
+            entity.Property(x => x.GenericDocumentNumber).HasMaxLength(30);
 
             entity.HasOne(x => x.Tenant)
                 .WithMany()
                 .HasForeignKey(x => x.TenantId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(x => x.ReservationItem)
+            entity.HasOne(x => x.BoatDailyTrip)
                 .WithMany()
-                .HasForeignKey(x => x.ReservationItemId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(x => x.ReservationItem)
-                .WithMany()
-                .HasForeignKey(x => x.ReservationItemId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .HasForeignKey(x => x.BoatDailyTripId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(x => x.Boat)
                 .WithMany()
@@ -617,35 +712,31 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        modelBuilder.Entity<BoatDailyTrip>(entity =>
+        modelBuilder.Entity<BoatDailyTripComment>(entity =>
         {
-            entity.ToTable("BoatDailyTrips");
-
             entity.HasKey(x => x.Id);
 
-            entity.HasIndex(x => x.TenantId);
-            entity.HasIndex(x => new { x.TenantId, x.BoatId, x.TripDate }).IsUnique();
-
-            entity.Property(x => x.Status)
-                .HasMaxLength(30)
+            entity.Property(x => x.CommentType)
+                .HasMaxLength(50)
                 .IsRequired();
 
-            entity.Property(x => x.DocumentNumber)
-                .HasMaxLength(50);
+            entity.Property(x => x.Comment)
+                .HasMaxLength(1000)
+                .IsRequired();
 
-            entity.Property(x => x.DocumentPath)
-                .HasMaxLength(500);
+            entity.HasOne(x => x.BoatDailyTrip)
+                .WithMany(x => x.Comments)
+                .HasForeignKey(x => x.BoatDailyTripId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(x => x.Tenant)
+            entity.HasOne(x => x.CreatedByUser)
                 .WithMany()
-                .HasForeignKey(x => x.TenantId)
+                .HasForeignKey(x => x.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(x => x.Boat)
-                .WithMany()
-                .HasForeignKey(x => x.BoatId)
-                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(x => new { x.TenantId, x.BoatDailyTripId });
         });
+
     }
 
     private static void ConfigureAudit(ModelBuilder modelBuilder)

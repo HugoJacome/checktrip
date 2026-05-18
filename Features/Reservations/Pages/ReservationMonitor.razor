@@ -3,7 +3,7 @@
 @using CheckAccess.Features.Security
 @using CheckAccess.Features.Tickets.Dialog
 @using CheckTrip.Web.Features.Reservations.Models
-@using CheckTrip.Web.Features.Reservations.Services
+@using CheckTrip.Web.Features.Reservations.Models.Operations
 @using CheckTrip.Web.Features.Tickets.Models
 @using CheckTrip.Web.Features.Tickets.Services
 @using CheckTrip.Web.Infrastructure.Notifications
@@ -28,35 +28,54 @@
                        Color="Color.Primary"
                        StartIcon="@Icons.Material.Filled.Add"
                        Disabled="@_isLocked"
-                       OnClick="@(() => Navigation.NavigateTo("/reservations/create"))">
+                       OnClick="GoToCreateReservation">
                 Nueva reserva
             </MudButton>
         </MudStack>
 
         <MudPaper Class="pa-4">
             <MudGrid>
-                <MudItem xs="12" md="4">
+                <MudItem xs="12" md="3">
                     <MudDatePicker Label="Fecha del viaje"
                                    @bind-Date="_tripDate"
                                    DateFormat="yyyy-MM-dd" />
                 </MudItem>
 
-                <MudItem xs="12" md="5">
+                <MudItem xs="12" md="4">
                     <MudSelect T="Guid?"
                                Label="Bote"
-                               @bind-Value="_boatId"
+                               Value="_boatId"
+                               ValueChanged="OnBoatChanged"
+                               Clearable="true"
                                Variant="Variant.Outlined"
                                Margin="Margin.Dense">
                         @foreach (var boat in _boats)
                         {
-                            <MudSelectItem Value="@((Guid?)boat.Id)">
+                            <MudSelectItem T="Guid?" Value="@boat.Id">
                                 @boat.Name
                             </MudSelectItem>
                         }
                     </MudSelect>
                 </MudItem>
 
-                <MudItem xs="12" md="3" Class="d-flex align-end">
+                <MudItem xs="12" md="4">
+                    <MudSelect T="Guid?"
+                               Label="Ruta / Horario"
+                               @bind-Value="_boatRouteScheduleId"
+                               Clearable="true"
+                               Disabled="@(!_boatId.HasValue)"
+                               Variant="Variant.Outlined"
+                               Margin="Margin.Dense">
+                        @foreach (var item in _routeSchedules)
+                        {
+                            <MudSelectItem T="Guid?" Value="@item.Id">
+                                @($"{item.Route} · {item.Schedule}")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" md="1" Class="d-flex align-end">
                     <MudButton Variant="Variant.Filled"
                                Color="Color.Primary"
                                FullWidth="true"
@@ -76,6 +95,9 @@
                           Justify="Justify.SpaceBetween">
                     <MudStack Spacing="1">
                         <MudText Typo="Typo.h6">@_selectedBoatName</MudText>
+                        <MudText Typo="Typo.body2">
+                            @_selectedRouteScheduleName
+                        </MudText>
                         <MudText Typo="Typo.body2">
                             Fecha: @_tripDate?.ToString("yyyy-MM-dd")
                         </MudText>
@@ -165,6 +187,7 @@
                         <MudButton Size="Size.Small"
                                    Variant="Variant.Text"
                                    Color="Color.Primary"
+                                   Disabled="@(context.Id == Guid.Empty)"
                                    OnClick="@(() => MarkPrinted(context.Id))">
                             @(context.IsPrinted ? "Reimprimir" : "Imprimir")
                         </MudButton>
@@ -172,7 +195,7 @@
                 </RowTemplate>
 
                 <NoRecordsContent>
-                    <MudText>No existen boletos para este bote y fecha.</MudText>
+                    <MudText>No existen pasajeros o boletos para esta ruta/horario y fecha.</MudText>
                 </NoRecordsContent>
             </MudTable>
         }
@@ -181,9 +204,12 @@
 
 @code {
     private List<BoatListItem> _boats = [];
+    private List<RouteScheduleCatalogItem> _routeSchedules = [];
     private List<TicketListItem> _tickets = [];
+
     private DateTime? _tripDate = DateTime.UtcNow.Date;
     private Guid? _boatId;
+    private Guid? _boatRouteScheduleId;
 
     private bool _loading;
     private bool _tripLoaded;
@@ -191,21 +217,45 @@
 
     private string _tripStatus = BoatDailyTripStatus.Open;
     private string? _documentNumber;
-    private string _selectedBoatName = "";
+    private string _selectedBoatName = string.Empty;
+    private string _selectedRouteScheduleName = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         _boats = await BoatService.GetAllAsync();
     }
-    private static DateTime ToUtcDate(DateTime date)
+
+    private async Task OnBoatChanged(Guid? value)
     {
-        return DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+        _boatId = value;
+        _boatRouteScheduleId = null;
+        _routeSchedules.Clear();
+        _tickets.Clear();
+        _tripLoaded = false;
+        _isLocked = false;
+        _documentNumber = null;
+        _tripStatus = BoatDailyTripStatus.Open;
+
+        if (!_boatId.HasValue)
+            return;
+
+        _routeSchedules = await BoatDailyTripService.GetRouteSchedulesByBoatAsync(_boatId.Value);
+
+        if (_routeSchedules.Count == 1)
+            _boatRouteScheduleId = _routeSchedules[0].Id;
     }
+
     private async Task LoadTrip()
     {
         if (!_boatId.HasValue)
         {
             Notifications.Warning("Seleccione un bote.");
+            return;
+        }
+
+        if (!_boatRouteScheduleId.HasValue)
+        {
+            Notifications.Warning("Seleccione una ruta/horario.");
             return;
         }
 
@@ -220,15 +270,19 @@
         try
         {
             var tripDateUtc = ToUtcDate(_tripDate.Value);
-
-            var trip = await BoatDailyTripService.GetOrCreateAsync(_boatId.Value, tripDateUtc);
+            var trip = await BoatDailyTripService.GetOrCreateAsync(_boatRouteScheduleId.Value, tripDateUtc);
 
             _tripStatus = trip.Status;
             _isLocked = trip.IsLocked;
             _documentNumber = trip.DocumentNumber;
-            _selectedBoatName = _boats.FirstOrDefault(x => x.Id == _boatId.Value)?.Name ?? "";
+            _selectedBoatName = _boats.FirstOrDefault(x => x.Id == _boatId.Value)?.Name ?? string.Empty;
 
-            _tickets = await TicketService.GetMonitorByBoatAndDateAsync(_boatId.Value, tripDateUtc);
+            var selectedRouteSchedule = _routeSchedules.FirstOrDefault(x => x.Id == _boatRouteScheduleId.Value);
+            _selectedRouteScheduleName = selectedRouteSchedule is null
+                ? string.Empty
+                : $"{selectedRouteSchedule.Route} · {selectedRouteSchedule.Schedule}";
+
+            _tickets = await TicketService.GetMonitorByScheduleAndDateAsync(_boatRouteScheduleId.Value, tripDateUtc);
 
             _tripLoaded = true;
         }
@@ -244,7 +298,7 @@
 
     private async Task GenerateTickets()
     {
-        if (!_boatId.HasValue || !_tripDate.HasValue)
+        if (!_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
 
         if (_isLocked)
@@ -255,7 +309,7 @@
 
         try
         {
-            await TicketService.GenerateForBoatAndDateAsync(_boatId.Value, _tripDate.Value);
+            await TicketService.GenerateForScheduleAndDateAsync(_boatRouteScheduleId.Value, _tripDate.Value);
             Notifications.Success("Boletos generados correctamente.");
             await LoadTrip();
         }
@@ -267,7 +321,7 @@
 
     private async Task OpenGenericTicket()
     {
-        if (!_boatId.HasValue || !_tripDate.HasValue)
+        if (!_boatId.HasValue || !_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
 
         if (_isLocked)
@@ -279,6 +333,7 @@
         var parameters = new DialogParameters
         {
             ["BoatId"] = _boatId.Value,
+            ["BoatRouteScheduleId"] = _boatRouteScheduleId.Value,
             ["TripDate"] = _tripDate.Value
         };
 
@@ -298,13 +353,13 @@
 
     private async Task GenerateTripDocument()
     {
-        if (!_boatId.HasValue || !_tripDate.HasValue)
+        if (!_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
 
         try
         {
-            await TicketService.GenerateForBoatAndDateAsync(_boatId.Value, _tripDate.Value);
-            await BoatDailyTripService.GenerateDocumentAsync(_boatId.Value, _tripDate.Value);
+            await TicketService.GenerateForScheduleAndDateAsync(_boatRouteScheduleId.Value, _tripDate.Value);
+            await BoatDailyTripService.GenerateDocumentAsync(_boatRouteScheduleId.Value, _tripDate.Value);
 
             Notifications.Success("Documento del viaje generado. El viaje quedó bloqueado.");
             await LoadTrip();
@@ -327,6 +382,16 @@
         {
             Notifications.Error(ex.Message);
         }
+    }
+
+    private void GoToCreateReservation()
+    {
+        Navigation.NavigateTo("/reservations/create");
+    }
+
+    private static DateTime ToUtcDate(DateTime date)
+    {
+        return DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
     }
 
     private static Color GetTripStatusColor(string status)

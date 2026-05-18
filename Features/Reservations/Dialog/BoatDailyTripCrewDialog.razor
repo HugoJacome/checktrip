@@ -1,0 +1,143 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject BoatDailyTripService BoatDailyTripService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                La tripulación pertenece al viaje diario, no a la reserva.
+            </MudAlert>
+
+            <MudText Typo="Typo.subtitle2">Capitán</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Nombre capitán"
+                                  @bind-Value="_model.CaptainName"
+                                  Required="true" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula capitán"
+                                  @bind-Value="_model.CaptainDocument" />
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle2">Marineros</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 1"
+                                  @bind-Value="_model.Sailor1Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 1"
+                                  @bind-Value="_model.Sailor1Document" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 2"
+                                  @bind-Value="_model.Sailor2Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 2"
+                                  @bind-Value="_model.Sailor2Document" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Marinero 3"
+                                  @bind-Value="_model.Sailor3Name" />
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudTextField Label="Cédula marinero 3"
+                                  @bind-Value="_model.Sailor3Document" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField Label="Observación"
+                          Lines="3"
+                          @bind-Value="_model.Notes" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Guardar tripulación
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid BoatDailyTripId { get; set; }
+
+    private bool _saving;
+
+    private FinishBoatDailyTripModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model.BoatDailyTripId = BoatDailyTripId;
+
+        var trip = await BoatDailyTripService.GetByIdAsync(BoatDailyTripId);
+
+        if (trip?.Crew is not null)
+        {
+            _model.CaptainName = trip.Crew.CaptainName;
+            _model.CaptainDocument = trip.Crew.CaptainDocument;
+            _model.Sailor1Name = trip.Crew.Sailor1Name;
+            _model.Sailor1Document = trip.Crew.Sailor1Document;
+            _model.Sailor2Name = trip.Crew.Sailor2Name;
+            _model.Sailor2Document = trip.Crew.Sailor2Document;
+            _model.Sailor3Name = trip.Crew.Sailor3Name;
+            _model.Sailor3Document = trip.Crew.Sailor3Document;
+            _model.Notes = trip.Crew.Notes;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+
+            await BoatDailyTripService.SaveCrewAsync(_model);
+
+            Notifications.Success("Tripulación guardada.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

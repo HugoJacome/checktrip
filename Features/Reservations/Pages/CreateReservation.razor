@@ -268,7 +268,7 @@
                 </MudText>
 
                 <MudText Typo="Typo.caption" Class="ct-availability-subtitle">
-                    Seleccione el día y horario disponible para la ida.
+                    Seleccione el día y horario disponible. Cada pasajero puede viajar solo ida, solo regreso o ambos.
                 </MudText>
             </MudStack>
 
@@ -390,7 +390,7 @@
             </MudStack>
         </MudStack>
 
-        <MudTable Items="_model.Passengers"
+        <MudTable Items="_model.Passengers.Where(x => !x.IsCancelled)"
                   Dense="true"
                   Hover="true"
                   Bordered="true"
@@ -531,7 +531,7 @@
     private List<RouteListItem> _routes = [];
     private List<AgencyListItem> _agencies = [];
     private List<SellerListItem> _sellers = [];
-    private List<WeeklyAvailabilityItem> _weekly = []; 
+    private List<WeeklyAvailabilityItem> _weekly = [];
     private bool _isEditMode => ReservationId.HasValue && ReservationId.Value != Guid.Empty;
     private bool IsEditMode => ReservationId.HasValue;
     private string PageTitle => _isEditMode ? "Editar reserva" : "Nueva reserva";
@@ -766,15 +766,10 @@
     {
         if (IsEditMode && passenger.ReservationItemId.HasValue)
         {
-            await Service.CancelPassengerAsync(
-                ReservationId!.Value,
-                passenger.ReservationItemId.Value,
-                "Cancelado desde edición de reserva");
-
             passenger.IsCancelled = true;
             ClearPassengerRow(passenger);
 
-            Notifications.Success("Pasajero cancelado. La fila quedó disponible para ingresar otro pasajero.");
+            Notifications.Success("Pasajero retirado de la edición. Al guardar se actualizarán los segmentos de la reserva.");
         }
         else
         {
@@ -782,6 +777,8 @@
         }
 
         SyncPassengerCountersFromList();
+
+        await Task.CompletedTask;
     }
 
     private async Task OnPassengerDocumentChangedAsync(
@@ -1307,6 +1304,7 @@
 
             ValidatePassengersBeforeSave();
             ValidatePassengerQuantities();
+            EnsureSelectedTripInModel();
 
             Guid reservationId;
 
@@ -1347,6 +1345,7 @@
         if (_model.OutboundDate.Value.Date < DateTime.Today)
             throw new Exception("Solo puede registrar reservas desde el día actual en adelante.");
         var duplicates = _model.Passengers
+            .Where(x => !x.IsCancelled)
             .Where(x => !x.IsGenericPassenger)
             .Where(x => !string.IsNullOrWhiteSpace(x.DocumentNumber))
             .GroupBy(x => x.DocumentNumber.Trim(), StringComparer.OrdinalIgnoreCase)
@@ -1357,7 +1356,7 @@
         if (duplicates.Any())
             throw new Exception($"Existen pasajeros duplicados: {string.Join(", ", duplicates)}.");
 
-        foreach (var passenger in _model.Passengers)
+        foreach (var passenger in _model.Passengers.Where(x => !x.IsCancelled))
         {
             if (passenger.IsGenericPassenger)
             {
@@ -1463,11 +1462,27 @@
         SyncPassengerCountersFromList();
     }
 
+
+    private void EnsureSelectedTripInModel()
+    {
+        if (_selectedTrip is null)
+            throw new Exception("Debe seleccionar un viaje.");
+
+        _model.OutboundRouteScheduleId = _selectedTrip.BoatRouteScheduleId;
+        _model.OutboundDate = _selectedTrip.TravelDate.Date;
+
+        foreach (var passenger in _model.Passengers.Where(x => !x.IsCancelled))
+        {
+            if (passenger.Return && !passenger.ReturnDate.HasValue)
+                passenger.ReturnDate = _model.OutboundDate.Value.Date;
+        }
+    }
+
     private void ValidatePassengerQuantities()
     {
-        var adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
-        var infantCount = _model.Passengers.Count(x => x.PassengerType == "Infant");
-        var courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
+        var adultCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Adult");
+        var infantCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Infant");
+        var courtesyCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Courtesy");
 
         if (adultCount != _adultCount)
             throw new Exception($"La cantidad de adultos no coincide. Indicados: {_adultCount}, cargados: {adultCount}.");
@@ -1552,9 +1567,9 @@
 
     private void SyncPassengerCountersFromList()
     {
-        _adultCount = _model.Passengers.Count(x => x.PassengerType == "Adult");
-        _infantCount = _model.Passengers.Count(x => x.PassengerType == "Infant");
-        _courtesyCount = _model.Passengers.Count(x => x.PassengerType == "Courtesy");
+        _adultCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Adult");
+        _infantCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Infant");
+        _courtesyCount = _model.Passengers.Count(x => !x.IsCancelled && x.PassengerType == "Courtesy");
     }
 
     private string GetPassengerRowClass(ReservationPassengerModel passenger, int rowNumber)
@@ -1623,7 +1638,7 @@
 
         StateHasChanged();
     }
-    
+
     private void GoBack()
     {
         Navigation.NavigateTo(string.IsNullOrWhiteSpace(ReturnUrl)

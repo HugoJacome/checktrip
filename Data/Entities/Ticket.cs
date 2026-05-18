@@ -2,13 +2,16 @@
 
 public class Ticket : BaseEntity
 {
-    public Guid? ReservationItemId { get; set; }
-    public ReservationItem? ReservationItem { get; set; }
+    public Guid? ReservationPassengerTripId { get; set; }
+    public ReservationPassengerTrip? ReservationPassengerTrip { get; set; }
+
+    public Guid? BoatDailyTripId { get; set; }
+    public BoatDailyTrip? BoatDailyTrip { get; set; }
 
     public Guid? BoatId { get; set; }
     public Boat? Boat { get; set; }
 
-    public DateTime? TripDate { get; set; }
+    public DateOnly? TripDate { get; set; }
 
     public string TicketNumber { get; set; } = default!;
     public string? TicketType { get; set; }

@@ -1,64 +1,62 @@
 ﻿using CheckAccess.Infrastructure.Auth;
-using CheckTrip.Web.Data;
 using CheckTrip.Web.Data.Entities;
 using CheckTrip.Web.Features.Tickets.Models;
 using CheckTrip.Web.Infrastructure.Audit;
 using CheckTrip.Web.Infrastructure.Auth;
 using CheckTrip.Web.Infrastructure.Repositories;
-using CheckTrip.Web.Infrastructure.Tenant;
-using Microsoft.EntityFrameworkCore;
 
 namespace CheckTrip.Web.Features.Tickets.Services;
 
 public class TicketService
 {
-    private readonly AppDbContext _db;
     private readonly TicketRepository _repo;
-    private readonly ITenantProvider _tenant;
     private readonly ICurrentUserService _currentUser;
     private readonly IAuditService _audit;
 
     public TicketService(
-        AppDbContext db,
         TicketRepository repo,
-        ITenantProvider tenant,
         ICurrentUserService currentUser,
         IAuditService audit)
     {
-        _db = db;
         _repo = repo;
-        _tenant = tenant;
         _currentUser = currentUser;
         _audit = audit;
     }
 
     public async Task<List<TicketListItem>> GetByReservationAsync(Guid reservationId)
     {
-        var tickets = await _repo.GetByReservationAsync(reservationId);
+        var trips = await _repo.GetReservationPassengerTripsAsync(reservationId);
+        var tripIds = trips.Select(x => x.Id).ToList();
+        var tickets = await _repo.GetTicketsByPassengerTripIdsAsync(tripIds);
 
-        return tickets.Select(x => new TicketListItem
+        var ticketByTripId = tickets
+            .Where(x => x.ReservationPassengerTripId.HasValue)
+            .GroupBy(x => x.ReservationPassengerTripId!.Value)
+            .ToDictionary(x => x.Key, x => x.First());
+
+        return trips.Select(trip =>
         {
-            Id = x.Id,
-            ReservationItemId = x.ReservationItemId,
-            TicketNumber = x.TicketNumber,
-            PassengerName = x.ReservationItem.Customer.FullName,
-            DocumentNumber = x.ReservationItem.Customer.DocumentNumber,
-            TripType = x.ReservationItem.TripType,
-            IsPrinted = x.IsPrinted,
-            PrintedAt = x.PrintedAt,
-            ReprintCount = x.ReprintCount
+            ticketByTripId.TryGetValue(trip.Id, out var ticket);
+
+            return new TicketListItem
+            {
+                Id = ticket?.Id ?? Guid.Empty,
+                ReservationItemId = trip.Id,
+                TicketNumber = ticket?.TicketNumber ?? "Pendiente",
+                PassengerName = GetPassengerName(trip),
+                DocumentNumber = GetDocumentNumber(trip),
+                TripType = GetSegmentText(trip.SegmentType),
+                IsGeneric = !trip.CustomerId.HasValue,
+                IsPrinted = ticket?.IsPrinted ?? false,
+                PrintedAt = ticket?.PrintedAt,
+                ReprintCount = ticket?.ReprintCount ?? 0
+            };
         }).ToList();
     }
 
     public async Task GenerateForReservationAsync(Guid reservationId)
     {
-        var tenantId = _tenant.GetTenantId();
-
-        var reservation = await _db.Reservations
-            .Include(x => x.Items)
-            .FirstOrDefaultAsync(x =>
-                x.Id == reservationId &&
-                x.TenantId == tenantId);
+        var reservation = await _repo.GetReservationWithPassengerTripsAsync(reservationId);
 
         if (reservation is null)
             throw new Exception("Reserva no encontrada.");
@@ -66,31 +64,42 @@ public class TicketService
         if (reservation.Status == "Cancelled")
             throw new Exception("No se pueden generar boletos para una reserva cancelada.");
 
+        var sequence = await _repo.CountTicketsTodayAsync();
         var created = new List<Ticket>();
 
-        foreach (var item in reservation.Items.Where(x => x.Status != "Cancelled"))
+        foreach (var trip in reservation.PassengerTrips.Where(x => x.Status != "Cancelled"))
         {
-            var exists = await _repo.ExistsForReservationItemAsync(item.Id);
+            var locked = await _repo.IsTripLockedAsync(trip.BoatRouteScheduleId, trip.TravelDate);
+
+            if (locked)
+                throw new Exception($"El viaje del {trip.TravelDate:dd/MM/yyyy} ya tiene documento generado o está cerrado.");
+
+            var exists = await _repo.ExistsForReservationPassengerTripAsync(trip.Id);
 
             if (exists)
                 continue;
 
+            sequence++;
+
             var ticket = new Ticket
             {
-                TenantId = tenantId,
-                ReservationItemId = item.Id,
-                TicketNumber = await GenerateTicketNumberAsync(),
-                TicketType = item.TripType,
-                Color = null,
+                TenantId = reservation.TenantId,
+                ReservationPassengerTripId = trip.Id,
+                BoatId = trip.BoatRouteSchedule.BoatId,
+                TripDate = trip.TravelDate,
+                TicketNumber = GenerateTicketNumber(sequence),
+                TicketType = trip.SegmentType,
+                GenericPassengerName = trip.GenericPassengerName,
+                GenericDocumentNumber = trip.GenericDocumentNumber,
                 IsPrinted = false,
                 CreatedAt = DateTime.UtcNow
             };
 
-            _db.Tickets.Add(ticket);
             created.Add(ticket);
         }
 
-        await _db.SaveChangesAsync();
+        if (created.Any())
+            await _repo.AddRangeAsync(created);
 
         await _audit.LogAsync("Ticket", "Generate", null, new
         {
@@ -101,129 +110,193 @@ public class TicketService
 
     public async Task MarkPrintedAsync(Guid ticketId)
     {
+        if (ticketId == Guid.Empty)
+            throw new Exception("Primero debe generar el boleto.");
+
         var user = await _currentUser.LoadAsync();
+
         if (user is null)
             throw new Exception("Usuario no autenticado.");
 
-        var ticket = await _repo.GetAsync(ticketId);
+        var result = await _repo.MarkPrintedAsync(ticketId, user.UserId);
 
-        if (ticket is null)
+        if (result is null)
             throw new Exception("Boleto no encontrado.");
 
-        var old = new
-        {
-            ticket.IsPrinted,
-            ticket.PrintedAt,
-            ticket.ReprintCount
-        };
-
-        if (!ticket.IsPrinted)
-        {
-            ticket.IsPrinted = true;
-            ticket.PrintedAt = DateTime.UtcNow;
-            ticket.PrintedByUserId = user.UserId;
-        }
-        else
-        {
-            ticket.ReprintCount++;
-            ticket.LastReprintAt = DateTime.UtcNow;
-        }
-
-        await _db.SaveChangesAsync();
-
-        await _audit.LogAsync("Ticket", ticket.ReprintCount > 0 ? "Reprint" : "Print", old, ticket);
+        await _audit.LogAsync("Ticket", result.Action, result.OldValue, result.NewValue);
     }
 
     public async Task<List<TicketListItem>> GetByBoatAndDateAsync(Guid boatId, DateTime tripDate)
     {
-        var tickets = await _repo.GetByBoatAndDateAsync(boatId, tripDate);
-
-        return tickets.Select(x => new TicketListItem
-        {
-            Id = x.Id,
-            ReservationItemId = x.ReservationItemId,
-            TicketNumber = x.TicketNumber,
-            PassengerName = x.ReservationItem?.Customer?.FullName ?? x.GenericPassengerName ?? "Ticket genérico",
-            DocumentNumber = x.ReservationItem?.Customer?.DocumentNumber ?? x.GenericDocumentNumber ?? "",
-            TripType = x.TicketType ?? "",
-            IsGeneric = x.ReservationItemId == null,
-            IsPrinted = x.IsPrinted,
-            PrintedAt = x.PrintedAt,
-            ReprintCount = x.ReprintCount
-        }).ToList();
+        return await GetMonitorByBoatAndDateAsync(boatId, tripDate);
     }
+
     public async Task<List<TicketListItem>> GetMonitorByBoatAndDateAsync(Guid boatId, DateTime tripDate)
     {
-        var tenantId = _tenant.GetTenantId();
-        var tripDateUtc = DateTime.SpecifyKind(tripDate.Date, DateTimeKind.Utc);
-        var dateOnly = DateOnly.FromDateTime(tripDateUtc);
+        var dateOnly = DateOnly.FromDateTime(tripDate.Date);
 
-        var reservationItems = await _db.ReservationItems
-            .Include(x => x.Reservation)
-            .Include(x => x.Customer)
-            .Include(x => x.OutboundRouteSchedule)
-            .Include(x => x.ReturnRouteSchedule)
-            .Where(x =>
-                x.TenantId == tenantId &&
-                x.Status != "Cancelled" &&
-                x.Reservation.Status != "Cancelled" &&
-                (
-                    (
-                        x.OutboundTravelDate == dateOnly &&
-                        x.OutboundRouteSchedule != null &&
-                        x.OutboundRouteSchedule.BoatId == boatId
-                    )
-                    ||
-                    (
-                        x.ReturnTravelDate == dateOnly &&
-                        x.ReturnRouteSchedule != null &&
-                        x.ReturnRouteSchedule.BoatId == boatId
-                    )
-                ))
-            .ToListAsync();
+        var passengerTrips = await _repo.GetMonitorPassengerTripsByBoatAndDateAsync(boatId, dateOnly);
+        var tickets = await _repo.GetTicketsByBoatAndDateAsync(boatId, dateOnly);
 
-        var itemIds = reservationItems.Select(x => x.Id).ToList();
+        return BuildMonitorResult(passengerTrips, tickets);
+    }
 
-        var tickets = await _db.Tickets
-            .Include(x => x.ReservationItem)
-                .ThenInclude(x => x.Customer)
-            .Where(x =>
-                x.TenantId == tenantId &&
-                x.BoatId == boatId &&
-                x.TripDate.HasValue &&
-                x.TripDate.Value.Date == tripDateUtc.Date)
-            .ToListAsync();
+    public async Task<List<TicketListItem>> GetMonitorByScheduleAndDateAsync(Guid boatRouteScheduleId, DateTime tripDate)
+    {
+        var dateOnly = DateOnly.FromDateTime(tripDate.Date);
 
-        var ticketByItemId = tickets
-            .Where(x => x.ReservationItemId.HasValue)
-            .ToDictionary(x => x.ReservationItemId!.Value, x => x);
+        var schedule = await _repo.GetBoatRouteScheduleAsync(boatRouteScheduleId);
+
+        if (schedule is null)
+            throw new Exception("La ruta/horario seleccionado no existe.");
+
+        var passengerTrips = await _repo.GetMonitorPassengerTripsByScheduleAndDateAsync(
+            boatRouteScheduleId,
+            dateOnly);
+
+        var tickets = await _repo.GetTicketsByBoatAndDateAsync(
+            schedule.BoatId,
+            dateOnly);
+
+        return BuildMonitorResult(passengerTrips, tickets);
+    }
+
+    public async Task GenerateForBoatAndDateAsync(Guid boatId, DateTime tripDate)
+    {
+        var scheduleIds = await _repo.GetActiveScheduleIdsByBoatAsync(boatId);
+
+        foreach (var scheduleId in scheduleIds)
+            await GenerateForScheduleAndDateAsync(scheduleId, tripDate);
+    }
+
+    public async Task GenerateForScheduleAndDateAsync(Guid boatRouteScheduleId, DateTime tripDate)
+    {
+        var dateOnly = DateOnly.FromDateTime(tripDate.Date);
+
+        var schedule = await _repo.GetBoatRouteScheduleAsync(boatRouteScheduleId);
+
+        if (schedule is null || !schedule.IsActive)
+            throw new Exception("La ruta/horario seleccionado no existe o está inactivo.");
+
+        var locked = await _repo.IsTripLockedAsync(boatRouteScheduleId, dateOnly);
+
+        if (locked)
+            throw new Exception("El viaje ya tiene documento generado o está cerrado.");
+
+        var trips = await _repo.GetMonitorPassengerTripsByScheduleAndDateAsync(
+            boatRouteScheduleId,
+            dateOnly);
+
+        var sequence = await _repo.CountTicketsTodayAsync();
+        var created = new List<Ticket>();
+
+        foreach (var trip in trips)
+        {
+            var exists = await _repo.ExistsForReservationPassengerTripAsync(trip.Id);
+
+            if (exists)
+                continue;
+
+            sequence++;
+
+            created.Add(new Ticket
+            {
+                TenantId = trip.TenantId,
+                ReservationPassengerTripId = trip.Id,
+                BoatId = schedule.BoatId,
+                TripDate = dateOnly,
+                TicketNumber = GenerateTicketNumber(sequence),
+                TicketType = trip.SegmentType,
+                GenericPassengerName = trip.GenericPassengerName,
+                GenericDocumentNumber = trip.GenericDocumentNumber,
+                IsPrinted = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (created.Any())
+            await _repo.AddRangeAsync(created);
+
+        await _audit.LogAsync("Ticket", "GenerateByScheduleAndDate", null, new
+        {
+            BoatRouteScheduleId = boatRouteScheduleId,
+            schedule.BoatId,
+            TripDate = dateOnly,
+            Tickets = created.Select(x => x.TicketNumber).ToList()
+        });
+    }
+
+    public async Task CreateGenericTicketAsync(
+        Guid boatId,
+        DateTime tripDate,
+        string passengerName,
+        string? documentNumber,
+        string ticketType,
+        Guid? boatRouteScheduleId = null)
+    {
+        var dateOnly = DateOnly.FromDateTime(tripDate.Date);
+
+        if (boatRouteScheduleId.HasValue)
+        {
+            var locked = await _repo.IsTripLockedAsync(boatRouteScheduleId.Value, dateOnly);
+
+            if (locked)
+                throw new Exception("El viaje ya tiene documento generado o está cerrado.");
+        }
+
+        var sequence = await _repo.CountTicketsTodayAsync() + 1;
+
+        var ticket = new Ticket
+        {
+            TenantId = await _repo.GetTenantIdAsync(),
+            ReservationPassengerTripId = null,
+            BoatId = boatId,
+            TripDate = dateOnly,
+            TicketNumber = GenerateTicketNumber(sequence),
+            TicketType = ticketType,
+            GenericPassengerName = passengerName,
+            GenericDocumentNumber = documentNumber,
+            IsPrinted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _repo.AddAsync(ticket);
+
+        await _audit.LogAsync("Ticket", "CreateGeneric", null, new
+        {
+            ticket.Id,
+            ticket.TicketNumber,
+            ticket.BoatId,
+            ticket.TripDate,
+            ticket.GenericPassengerName,
+            ticket.GenericDocumentNumber,
+            ticket.TicketType
+        });
+    }
+
+    private static List<TicketListItem> BuildMonitorResult(
+        List<ReservationPassengerTrip> passengerTrips,
+        List<Ticket> tickets)
+    {
+        var ticketByTripId = tickets
+            .Where(x => x.ReservationPassengerTripId.HasValue)
+            .GroupBy(x => x.ReservationPassengerTripId!.Value)
+            .ToDictionary(x => x.Key, x => x.First());
 
         var result = new List<TicketListItem>();
 
-        foreach (var item in reservationItems)
+        foreach (var trip in passengerTrips)
         {
-            var isOutbound = item.OutboundTravelDate == dateOnly &&
-                             item.OutboundRouteSchedule?.BoatId == boatId;
-
-            var isReturn = item.ReturnTravelDate == dateOnly &&
-                           item.ReturnRouteSchedule?.BoatId == boatId;
-
-            var tripType = isOutbound && isReturn
-                ? "Ida/Retorno"
-                : isOutbound
-                    ? "Ida"
-                    : "Retorno";
-
-            if (ticketByItemId.TryGetValue(item.Id, out var ticket))
+            if (ticketByTripId.TryGetValue(trip.Id, out var ticket))
             {
                 result.Add(new TicketListItem
                 {
                     Id = ticket.Id,
-                    ReservationItemId = item.Id,
+                    ReservationItemId = trip.Id,
                     TicketNumber = ticket.TicketNumber,
-                    PassengerName = item.Customer?.FullName ?? "Sin nombre",
-                    DocumentNumber = item.Customer?.DocumentNumber ?? "",
-                    TripType = ticket.TicketType ?? tripType,
+                    PassengerName = GetPassengerName(trip),
+                    DocumentNumber = GetDocumentNumber(trip),
+                    TripType = GetSegmentText(ticket.TicketType ?? trip.SegmentType),
                     IsGeneric = false,
                     IsPrinted = ticket.IsPrinted,
                     PrintedAt = ticket.PrintedAt,
@@ -235,11 +308,11 @@ public class TicketService
                 result.Add(new TicketListItem
                 {
                     Id = Guid.Empty,
-                    ReservationItemId = item.Id,
+                    ReservationItemId = trip.Id,
                     TicketNumber = "Pendiente",
-                    PassengerName = item.Customer?.FullName ?? "Sin nombre",
-                    DocumentNumber = item.Customer?.DocumentNumber ?? "",
-                    TripType = tripType,
+                    PassengerName = GetPassengerName(trip),
+                    DocumentNumber = GetDocumentNumber(trip),
+                    TripType = GetSegmentText(trip.SegmentType),
                     IsGeneric = false,
                     IsPrinted = false,
                     PrintedAt = null,
@@ -249,7 +322,7 @@ public class TicketService
         }
 
         var genericTickets = tickets
-            .Where(x => x.ReservationItemId == null)
+            .Where(x => !x.ReservationPassengerTripId.HasValue)
             .Select(x => new TicketListItem
             {
                 Id = x.Id,
@@ -268,96 +341,37 @@ public class TicketService
 
         return result
             .OrderBy(x => x.TicketNumber == "Pendiente" ? 1 : 0)
+            .ThenBy(x => x.TripType)
             .ThenBy(x => x.PassengerName)
             .ToList();
     }
 
-    public async Task GenerateForBoatAndDateAsync(Guid boatId, DateTime tripDate)
+    private static string GetPassengerName(ReservationPassengerTrip trip)
     {
-        var tenantId = _tenant.GetTenantId();
-
-        var tripDateUtc = DateTime.SpecifyKind(tripDate.Date, DateTimeKind.Utc);
-        var dateOnly = DateOnly.FromDateTime(tripDateUtc);
-
-        var items = await _db.ReservationItems
-            .Include(x => x.Reservation)
-            .Where(x =>
-                x.TenantId == tenantId &&
-                x.Status != "Cancelled" &&
-                x.Reservation.Status != "Cancelled" &&
-                (
-                    (x.OutboundTravelDate == dateOnly &&
-                     x.OutboundRouteSchedule != null &&
-                     x.OutboundRouteSchedule.BoatId == boatId)
-                    ||
-                    (x.ReturnTravelDate == dateOnly &&
-                     x.ReturnRouteSchedule != null &&
-                     x.ReturnRouteSchedule.BoatId == boatId)
-                ))
-            .ToListAsync();
-
-        foreach (var item in items)
-        {
-            var exists = await _repo.ExistsForReservationItemAsync(item.Id);
-
-            if (exists)
-                continue;
-
-            var ticket = new Ticket
-            {
-                TenantId = tenantId,
-                ReservationItemId = item.Id,
-                BoatId = boatId,
-                TripDate = tripDateUtc,
-                TicketNumber = await GenerateTicketNumberAsync(),
-                TicketType = item.TripType,
-                IsPrinted = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _db.Tickets.Add(ticket);
-        }
-
-        await _db.SaveChangesAsync();
-
-        await _audit.LogAsync("Ticket", "GenerateByBoatAndDate", null, new
-        {
-            BoatId = boatId,
-            TripDate = tripDateUtc
-        });
+        return trip.CustomerId.HasValue
+            ? trip.Customer?.FullName ?? "Sin nombre"
+            : trip.GenericPassengerName ?? "Pasajero genérico";
     }
 
-    public async Task CreateGenericTicketAsync(
-        Guid boatId,
-        DateTime tripDate,
-        string passengerName,
-        string? documentNumber,
-        string ticketType)
+    private static string GetDocumentNumber(ReservationPassengerTrip trip)
     {
-        var tenantId = _tenant.GetTenantId();
+        return trip.CustomerId.HasValue
+            ? trip.Customer?.DocumentNumber ?? ""
+            : trip.GenericDocumentNumber ?? "";
+    }
 
-        var ticket = new Ticket
+    private static string GetSegmentText(string? segmentType)
+    {
+        return segmentType switch
         {
-            TenantId = tenantId,
-            ReservationItemId = null,
-            BoatId = boatId,
-            TripDate = tripDate.Date,
-            TicketNumber = await GenerateTicketNumberAsync(),
-            TicketType = ticketType,
-            GenericPassengerName = passengerName,
-            GenericDocumentNumber = documentNumber,
-            IsPrinted = false,
-            CreatedAt = DateTime.UtcNow
+            "Outbound" => "Ida",
+            "Return" => "Retorno",
+            _ => segmentType ?? string.Empty
         };
-
-        _db.Tickets.Add(ticket);
-        await _db.SaveChangesAsync();
-
-        await _audit.LogAsync("Ticket", "CreateGeneric", null, ticket);
     }
-    private async Task<string> GenerateTicketNumberAsync()
+
+    private static string GenerateTicketNumber(int sequence)
     {
-        var count = await _repo.CountTicketsTodayAsync() + 1;
-        return $"TKT-{DateTime.UtcNow:yyyyMMdd}-{count:0000}";
+        return $"TKT-{DateTime.UtcNow:yyyyMMdd}-{sequence:0000}";
     }
 }

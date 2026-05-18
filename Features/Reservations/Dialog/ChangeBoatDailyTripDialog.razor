@@ -1,0 +1,95 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using MudBlazor
+
+@inject BoatDailyTripService BoatDailyTripService
+@inject INotificationService Notifications
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Warning" Dense="true">
+                El cambio de embarcación solo está permitido si el viaje todavía está abierto.
+            </MudAlert>
+
+            <MudSelect T="Guid"
+                       Label="Nueva embarcación / ruta / horario"
+                       @bind-Value="_model.NewBoatRouteScheduleId"
+                       Required="true">
+                @foreach (var item in _routeSchedules)
+                {
+                    <MudSelectItem Value="@item.Id">
+                        @item.DisplayName
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudTextField Label="Motivo"
+                          Lines="3"
+                          @bind-Value="_model.Reason"
+                          Required="true" />
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Guardar
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public Guid BoatDailyTripId { get; set; }
+
+    private bool _saving;
+    private List<RouteScheduleCatalogItem> _routeSchedules = [];
+
+    private ChangeBoatDailyTripModel _model = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model.BoatDailyTripId = BoatDailyTripId;
+
+        // Por ahora carga todos los route schedules activos.
+        // Luego podemos filtrar por ruta/horario si quieres evitar cambios operativos peligrosos.
+        _routeSchedules = await BoatDailyTripService.GetAllRouteSchedulesAsync();
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            _saving = true;
+
+            await BoatDailyTripService.ChangeBoatAsync(_model);
+
+            Notifications.Success("Embarcación actualizada.");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

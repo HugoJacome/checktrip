@@ -20,10 +20,8 @@ public class Reservation : BaseEntity
     public Guid CreatedByUserId { get; set; }
     public User CreatedByUser { get; set; } = default!;
 
-    public DateTime? UpdatedAt { get; set; }
     public string? Notes { get; set; }
 
-    public List<ReservationItem> Items { get; set; } = []; 
+    public List<ReservationPassengerTrip> PassengerTrips { get; set; } = [];
     public List<ReservationComment> Comments { get; set; } = [];
-    public List<ReservationTripCrew> TripCrews { get; set; } = [];
 }
