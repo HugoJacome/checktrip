@@ -11,7 +11,7 @@
             <MudText Typo="Typo.h6">Crear boleto genérico</MudText>
 
             <MudAlert Severity="Severity.Info" Dense="true">
-                Este boleto no queda asociado a una reserva. Se registra directamente para el bote y fecha seleccionados.
+                Este boleto no queda asociado a una reserva. Se registra directamente para el bote, ruta/horario y fecha seleccionados.
             </MudAlert>
 
             <MudForm @ref="_form">
@@ -68,6 +68,7 @@
 
 @code {
     [Parameter] public Guid BoatId { get; set; }
+    [Parameter] public Guid BoatRouteScheduleId { get; set; }
     [Parameter] public DateTime TripDate { get; set; }
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
@@ -98,7 +99,8 @@
                 TripDate.Date,
                 _passengerName.Trim(),
                 string.IsNullOrWhiteSpace(_documentNumber) ? null : _documentNumber.Trim(),
-                _ticketType);
+                _ticketType,
+                BoatRouteScheduleId);
 
             Notifications.Success("Boleto genérico creado correctamente.");
             MudDialog.Close(DialogResult.Ok(true));

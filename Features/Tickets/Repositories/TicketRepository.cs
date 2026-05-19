@@ -334,6 +334,43 @@ public class TicketRepository : BaseRepository<Ticket>
 
         return new TicketPrintResult(action, oldValue, newValue);
     }
+    public async Task<List<ReservationPassengerTrip>> GetPassengerTripsByIdsAsync(List<Guid> passengerTripIds)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        if (!passengerTripIds.Any())
+            return [];
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.ReservationPassengerTrips
+            .AsNoTracking()
+            .Include(x => x.Reservation)
+            .Include(x => x.Customer)
+            .Include(x => x.BoatRouteSchedule)
+            .Where(x =>
+                x.TenantId == tenantId &&
+                passengerTripIds.Contains(x.Id) &&
+                x.Status != "Cancelled" &&
+                x.Reservation.Status != "Cancelled")
+            .ToListAsync();
+    }
+
+    public async Task<BoatDailyTrip?> GetBoatDailyTripByScheduleAndDateAsync(
+        Guid boatRouteScheduleId,
+        DateOnly tripDate)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatDailyTrips
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId &&
+                x.BoatRouteScheduleId == boatRouteScheduleId &&
+                x.TripDate == tripDate);
+    }
 }
 
 public sealed record TicketPrintResult(

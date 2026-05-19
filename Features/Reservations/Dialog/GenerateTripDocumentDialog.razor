@@ -1,0 +1,305 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Tickets.Services
+@using CheckTrip.Web.Infrastructure.Notifications
+@using Microsoft.JSInterop
+@using MudBlazor
+
+@inject BoatDailyTripService BoatDailyTripService
+@inject INotificationService Notifications
+@inject IJSRuntime JS
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="Severity.Info" Dense="true">
+                Revise o modifique la tripulación del viaje antes de generar el documento.
+            </MudAlert>
+
+            <MudForm @ref="_form">
+                <MudGrid>
+                    <MudItem xs="12">
+                        <MudText Typo="Typo.subtitle2">Capitán</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid?"
+                                   Label="Seleccionar capitán"
+                                   Value="_selectedCaptainId"
+                                   ValueChanged="OnCaptainSelected"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+                            @foreach (var item in _captains)
+                            {
+                                <MudSelectItem T="Guid?" Value="@item.Id">
+                                    @item.DisplayName
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Nombre capitán"
+                                      @bind-Value="_model.CaptainName"
+                                      Required="true"
+                                      RequiredError="El capitán es obligatorio."
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Cédula capitán"
+                                      @bind-Value="_model.CaptainDocument"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudDivider />
+                        <MudText Typo="Typo.subtitle2">Marineros</MudText>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid?"
+                                   Label="Seleccionar marinero 1"
+                                   Value="_selectedSailor1Id"
+                                   ValueChanged="OnSailor1Selected"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+                            @foreach (var item in _sailors)
+                            {
+                                <MudSelectItem T="Guid?" Value="@item.Id">
+                                    @item.DisplayName
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Marinero 1"
+                                      @bind-Value="_model.Sailor1Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Cédula marinero 1"
+                                      @bind-Value="_model.Sailor1Document"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid?"
+                                   Label="Seleccionar marinero 2"
+                                   Value="_selectedSailor2Id"
+                                   ValueChanged="OnSailor2Selected"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+                            @foreach (var item in _sailors)
+                            {
+                                <MudSelectItem T="Guid?" Value="@item.Id">
+                                    @item.DisplayName
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Marinero 2"
+                                      @bind-Value="_model.Sailor2Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Cédula marinero 2"
+                                      @bind-Value="_model.Sailor2Document"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudSelect T="Guid?"
+                                   Label="Seleccionar marinero 3"
+                                   Value="_selectedSailor3Id"
+                                   ValueChanged="OnSailor3Selected"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense">
+                            @foreach (var item in _sailors)
+                            {
+                                <MudSelectItem T="Guid?" Value="@item.Id">
+                                    @item.DisplayName
+                                </MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Marinero 3"
+                                      @bind-Value="_model.Sailor3Name"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12" md="6">
+                        <MudTextField Label="Cédula marinero 3"
+                                      @bind-Value="_model.Sailor3Document"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+
+                    <MudItem xs="12">
+                        <MudTextField Label="Observación"
+                                      Lines="3"
+                                      @bind-Value="_model.Notes"
+                                      Variant="Variant.Outlined"
+                                      Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+            </MudForm>
+        </MudStack>
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="_saving">
+            Cancelar
+        </MudButton>
+
+        <MudButton Color="Color.Success"
+                   Variant="Variant.Filled"
+                   Disabled="_saving"
+                   OnClick="SaveAsync">
+            Generar documento
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid BoatId { get; set; }
+    [Parameter] public Guid BoatRouteScheduleId { get; set; }
+    [Parameter] public DateTime TripDate { get; set; }
+
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private MudForm? _form;
+    private bool _saving;
+
+    private GenerateTripDocumentModel _model = new();
+
+    private List<CrewMemberCatalogItem> _crewMembers = [];
+    private List<CrewMemberCatalogItem> _captains = [];
+    private List<CrewMemberCatalogItem> _sailors = [];
+
+    private Guid? _selectedCaptainId;
+    private Guid? _selectedSailor1Id;
+    private Guid? _selectedSailor2Id;
+    private Guid? _selectedSailor3Id;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model = await BoatDailyTripService.GetGenerateDocumentModelAsync(
+            BoatId,
+            BoatRouteScheduleId,
+            TripDate);
+
+        _crewMembers = await BoatDailyTripService.GetCrewMembersByBoatAsync(BoatId);
+        _captains = _crewMembers.Where(x => x.CanBeCaptain).ToList();
+        _sailors = _crewMembers.Where(x => x.CanBeSailor).ToList();
+    }
+
+    private void OnCaptainSelected(Guid? value)
+    {
+        _selectedCaptainId = value;
+
+        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
+
+        if (item is null)
+            return;
+
+        _model.CaptainName = item.FullName;
+        _model.CaptainDocument = item.DocumentNumber;
+    }
+
+    private void OnSailor1Selected(Guid? value)
+    {
+        _selectedSailor1Id = value;
+
+        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
+
+        if (item is null)
+            return;
+
+        _model.Sailor1Name = item.FullName;
+        _model.Sailor1Document = item.DocumentNumber;
+    }
+
+    private void OnSailor2Selected(Guid? value)
+    {
+        _selectedSailor2Id = value;
+
+        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
+
+        if (item is null)
+            return;
+
+        _model.Sailor2Name = item.FullName;
+        _model.Sailor2Document = item.DocumentNumber;
+    }
+
+    private void OnSailor3Selected(Guid? value)
+    {
+        _selectedSailor3Id = value;
+
+        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
+
+        if (item is null)
+            return;
+
+        _model.Sailor3Name = item.FullName;
+        _model.Sailor3Document = item.DocumentNumber;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_form is null)
+            return;
+
+        await _form.Validate();
+
+        if (!_form.IsValid)
+            return;
+
+        try
+        {
+            _saving = true;
+
+            var result = await BoatDailyTripService.GenerateDocumentWithCrewAsync(_model);
+
+            await JS.InvokeVoidAsync(
+                "checkTripDownloadFile",
+                result.FileName,
+                result.ContentType,
+                Convert.ToBase64String(result.Content));
+
+            Notifications.Success($"Documento generado: {result.DocumentNumber}");
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+}

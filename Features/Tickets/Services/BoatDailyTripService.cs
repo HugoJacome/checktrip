@@ -386,9 +386,9 @@ public class BoatDailyTripService
         if (currentTrip is null)
             throw new Exception("Viaje no encontrado.");
 
-        if (currentTrip.Status == BoatDailyTripStatus.DocumentGenerated ||
-            currentTrip.Status == BoatDailyTripStatus.Closed)
-            throw new Exception("El viaje ya tiene documento generado o está cerrado.");
+        //if (currentTrip.Status == BoatDailyTripStatus.DocumentGenerated ||
+        //    currentTrip.Status == BoatDailyTripStatus.Closed)
+        //    throw new Exception("El viaje ya tiene documento generado o está cerrado.");
 
         var newSchedule = await _repo.GetRouteScheduleDetailAsync(model.NewBoatRouteScheduleId);
 
@@ -434,5 +434,137 @@ public class BoatDailyTripService
     public async Task<BoatDailyTrip?> GetByIdAsync(Guid boatDailyTripId)
     {
         return await _repo.GetByIdAsync(boatDailyTripId);
+    }
+    public async Task<List<CrewMemberCatalogItem>> GetCrewMembersByBoatAsync(Guid boatId)
+    {
+        return await _repo.GetCrewMembersByBoatAsync(boatId);
+    }
+
+    public async Task<GenerateTripDocumentModel> GetGenerateDocumentModelAsync(
+        Guid boatId,
+        Guid boatRouteScheduleId,
+        DateTime tripDate)
+    {
+        var date = DateOnly.FromDateTime(tripDate.Date);
+
+        var trip = await _repo.GetTripWithCrewByScheduleAndDateAsync(
+            boatRouteScheduleId,
+            date);
+
+        var model = new GenerateTripDocumentModel
+        {
+            BoatId = boatId,
+            BoatRouteScheduleId = boatRouteScheduleId,
+            TripDate = tripDate.Date
+        };
+
+        if (trip?.Crew is not null)
+        {
+            model.CaptainName = trip.Crew.CaptainName;
+            model.CaptainDocument = trip.Crew.CaptainDocument;
+            model.Sailor1Name = trip.Crew.Sailor1Name;
+            model.Sailor1Document = trip.Crew.Sailor1Document;
+            model.Sailor2Name = trip.Crew.Sailor2Name;
+            model.Sailor2Document = trip.Crew.Sailor2Document;
+            model.Sailor3Name = trip.Crew.Sailor3Name;
+            model.Sailor3Document = trip.Crew.Sailor3Document;
+            model.Notes = trip.Crew.Notes;
+        }
+
+        return model;
+    }
+
+    public async Task<GenerateTripDocumentResult> GenerateDocumentWithCrewAsync(GenerateTripDocumentModel model)
+    {
+        var user = await _currentUser.LoadAsync();
+
+        if (user is null)
+            throw new Exception("Usuario no autenticado.");
+
+        if (model.BoatRouteScheduleId == Guid.Empty)
+            throw new Exception("Debe seleccionar ruta/horario.");
+
+        if (string.IsNullOrWhiteSpace(model.CaptainName))
+            throw new Exception("Debe ingresar el capitán.");
+
+        var date = DateOnly.FromDateTime(model.TripDate.Date);
+
+        var schedule = await _repo.GetRouteScheduleDetailAsync(model.BoatRouteScheduleId);
+
+        if (schedule is null)
+            throw new Exception("La ruta/horario seleccionado no existe o está inactivo.");
+
+        var trip = await _repo.GetOrCreateAsync(schedule, date);
+
+        var crew = new BoatDailyTripCrew
+        {
+            BoatDailyTripId = trip.Id,
+            CaptainName = model.CaptainName.Trim(),
+            CaptainDocument = model.CaptainDocument?.Trim(),
+            Sailor1Name = model.Sailor1Name?.Trim(),
+            Sailor1Document = model.Sailor1Document?.Trim(),
+            Sailor2Name = model.Sailor2Name?.Trim(),
+            Sailor2Document = model.Sailor2Document?.Trim(),
+            Sailor3Name = model.Sailor3Name?.Trim(),
+            Sailor3Document = model.Sailor3Document?.Trim(),
+            Notes = model.Notes?.Trim(),
+            CreatedByUserId = user.UserId
+        };
+
+        await _repo.SaveCrewAsync(trip.Id, crew);
+
+        var documentNumber = $"DOC-{model.TripDate:yyyyMMdd}-{schedule.BoatId.ToString()[..8]}";
+
+        var updatedTrip = await _repo.GenerateDocumentAsync(
+            schedule,
+            date,
+            user.UserId,
+            documentNumber);
+
+        var passengers = await _repo.GetPassengerTripsByBoatDailyTripAsync(updatedTrip.Id);
+
+        var content = await GenerateTripDocumentWordAsync(
+            updatedTrip,
+            schedule,
+            crew,
+            passengers);
+
+        var fileName = $"ListaPasajeros-{documentNumber}.docx";
+
+        await _audit.LogAsync("BoatDailyTrip", "GenerateDocumentWithCrew", null, new
+        {
+            updatedTrip.Id,
+            model.BoatId,
+            model.BoatRouteScheduleId,
+            TripDate = date,
+            updatedTrip.DocumentNumber,
+            model.CaptainName,
+            model.CaptainDocument,
+            model.Sailor1Name,
+            model.Sailor2Name,
+            model.Sailor3Name,
+            PassengerCount = passengers.Count
+        });
+
+        return new GenerateTripDocumentResult
+        {
+            DocumentNumber = updatedTrip.DocumentNumber ?? documentNumber,
+            FileName = fileName,
+            Content = content
+        };
+    }
+    private async Task<byte[]> GenerateTripDocumentWordAsync(
+    BoatDailyTrip trip,
+    BoatRouteSchedule schedule,
+    BoatDailyTripCrew crew,
+    List<ReservationPassengerTrip> passengers)
+    {
+        await Task.CompletedTask;
+
+        return TripDocumentGenerator.GeneratePassengerListDocument(
+            trip,
+            schedule,
+            crew,
+            passengers);
     }
 }

@@ -1,12 +1,15 @@
 ﻿@page "/reservations/monitor"
 
+@using CheckAccess.Features.Reservations.Dialog
 @using CheckAccess.Features.Security
 @using CheckAccess.Features.Tickets.Dialog
+@using CheckAccess.Shared.Dialogs
 @using CheckTrip.Web.Features.Reservations.Models
 @using CheckTrip.Web.Features.Reservations.Models.Operations
 @using CheckTrip.Web.Features.Tickets.Models
 @using CheckTrip.Web.Features.Tickets.Services
 @using CheckTrip.Web.Infrastructure.Notifications
+@using Microsoft.AspNetCore.Components.Web
 @using MudBlazor
 
 @inject NavigationManager Navigation
@@ -80,6 +83,7 @@
                                Color="Color.Primary"
                                FullWidth="true"
                                StartIcon="@Icons.Material.Filled.Search"
+                               Disabled="@_loading"
                                OnClick="LoadTrip">
                         Consultar
                     </MudButton>
@@ -89,115 +93,84 @@
 
         @if (_tripLoaded)
         {
-            <MudPaper Class="pa-4">
+            <MudPaper Class="@TripInfoClass">
                 <MudStack Row="true"
                           AlignItems="AlignItems.Center"
                           Justify="Justify.SpaceBetween">
                     <MudStack Spacing="1">
                         <MudText Typo="Typo.h6">@_selectedBoatName</MudText>
+
                         <MudText Typo="Typo.body2">
                             @_selectedRouteScheduleName
                         </MudText>
+
                         <MudText Typo="Typo.body2">
                             Fecha: @_tripDate?.ToString("yyyy-MM-dd")
                         </MudText>
 
-                        <MudChip T="string"
-                                 Size="Size.Small"
-                                 Color="@GetTripStatusColor(_tripStatus)">
-                            @GetTripStatusText(_tripStatus)
-                        </MudChip>
+                        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@GetTripStatusColor(_tripStatus)">
+                                @GetTripStatusText(_tripStatus)
+                            </MudChip>
 
-                        @if (!string.IsNullOrWhiteSpace(_documentNumber))
-                        {
-                            <MudText Typo="Typo.body2">
-                                Documento: @_documentNumber
-                            </MudText>
-                        }
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@GetAvailabilityColor(_outboundCount, _capacity)">
+                                Ida @_outboundCount/@_capacity
+                            </MudChip>
+
+                            <MudChip T="string"
+                                     Size="Size.Small"
+                                     Color="@GetAvailabilityColor(_returnCount, _capacity)">
+                                Retorno @_returnCount/@_capacity
+                            </MudChip>
+                        </MudStack>
                     </MudStack>
 
                     <MudStack Row="true" Spacing="2">
                         <MudButton Variant="Variant.Filled"
                                    Color="Color.Primary"
-                                   Disabled="@_isLocked"
+                                   Disabled="@_generatingTickets"
                                    StartIcon="@Icons.Material.Filled.ConfirmationNumber"
                                    OnClick="GenerateTickets">
-                            Generar boletos
+                            @GenerateTicketsButtonText
                         </MudButton>
 
                         <MudButton Variant="Variant.Outlined"
                                    Color="Color.Secondary"
-                                   Disabled="@_isLocked"
+                                   Disabled="@_generatingTickets"
                                    StartIcon="@Icons.Material.Filled.Add"
                                    OnClick="OpenGenericTicket">
                             Boleto genérico
                         </MudButton>
 
-                        <MudButton Variant="Variant.Filled"
-                                   Color="Color.Success"
-                                   Disabled="@_isLocked"
-                                   StartIcon="@Icons.Material.Filled.Description"
-                                   OnClick="GenerateTripDocument">
-                            Generar documento
-                        </MudButton>
+                        <MudTooltip Text="@DocumentTooltip">
+                            <MudButton Variant="Variant.Filled"
+                                       Color="Color.Success"
+                                       Disabled="@_generatingDocument"
+                                       StartIcon="@Icons.Material.Filled.Description"
+                                       OnClick="OpenGenerateDocumentDialog">
+                                Generar documento
+                            </MudButton>
+                        </MudTooltip>
                     </MudStack>
                 </MudStack>
             </MudPaper>
 
-            @if (_isLocked)
-            {
-                <MudAlert Severity="Severity.Warning">
-                    Este viaje ya tiene documento generado o está cerrado. No se pueden agregar más reservas ni boletos.
-                </MudAlert>
-            }
+            <MudTabs Rounded="true"
+                     Elevation="0"
+                     PanelClass="pt-3"
+                     @bind-ActivePanelIndex="_activeTabIndex">
+                <MudTabPanel Text="@($"Ida ({_outboundTickets.Count})")">
+                    @TicketsTable(_outboundTickets)
+                </MudTabPanel>
 
-            <MudTable Items="_tickets" Dense="true" Hover="true" Bordered="true" Loading="_loading">
-                <HeaderContent>
-                    <MudTh>Boleto</MudTh>
-                    <MudTh>Documento</MudTh>
-                    <MudTh>Pasajero</MudTh>
-                    <MudTh>Viaje</MudTh>
-                    <MudTh>Tipo</MudTh>
-                    <MudTh>Impreso</MudTh>
-                    <MudTh>Reimp.</MudTh>
-                    <MudTh>Acciones</MudTh>
-                </HeaderContent>
-
-                <RowTemplate>
-                    <MudTd>@context.TicketNumber</MudTd>
-                    <MudTd>@context.DocumentNumber</MudTd>
-                    <MudTd>@context.PassengerName</MudTd>
-                    <MudTd>@context.TripType</MudTd>
-                    <MudTd>
-                        <MudChip T="string"
-                                 Size="Size.Small"
-                                 Color="@(context.IsGeneric ? Color.Warning : Color.Info)">
-                            @(context.IsGeneric ? "Genérico" : "Reserva")
-                        </MudChip>
-                    </MudTd>
-                    <MudTd>
-                        <MudChip T="string"
-                                 Size="Size.Small"
-                                 Color="@(context.IsPrinted ? Color.Success : Color.Warning)">
-                            @(context.IsPrinted ? "Sí" : "No")
-                        </MudChip>
-                    </MudTd>
-                    <MudTd>@context.ReprintCount</MudTd>
-                    <MudTd>
-                        <MudButton Size="Size.Small"
-                                   Variant="Variant.Text"
-                                   Color="Color.Primary"
-                                   Disabled="@(context.Id == Guid.Empty)"
-                                   OnClick="@(() => MarkPrinted(context.Id))">
-                            @(context.IsPrinted ? "Reimprimir" : "Imprimir")
-                        </MudButton>
-                    </MudTd>
-                </RowTemplate>
-
-                <NoRecordsContent>
-                    <MudText>No existen pasajeros o boletos para esta ruta/horario y fecha.</MudText>
-                </NoRecordsContent>
-            </MudTable>
+                <MudTabPanel Text="@($"Retorno ({_returnTickets.Count})")">
+                    @TicketsTable(_returnTickets)
+                </MudTabPanel>
+            </MudTabs>
         }
     </MudStack>
 </RequirePermission>
@@ -206,6 +179,12 @@
     private List<BoatListItem> _boats = [];
     private List<RouteScheduleCatalogItem> _routeSchedules = [];
     private List<TicketListItem> _tickets = [];
+    private List<TicketListItem> _outboundTickets = [];
+    private List<TicketListItem> _returnTickets = [];
+
+    private readonly HashSet<Guid> _selectedTicketIds = [];
+    private readonly Dictionary<Guid, string> _rowStatus = [];
+    private readonly HashSet<Guid> _rowLoading = [];
 
     private DateTime? _tripDate = DateTime.UtcNow.Date;
     private Guid? _boatId;
@@ -214,11 +193,35 @@
     private bool _loading;
     private bool _tripLoaded;
     private bool _isLocked;
+    private bool _generatingTickets;
+    private bool _generatingDocument;
+
+    private int _activeTabIndex;
+    private int _capacity;
+    private int _outboundCount;
+    private int _returnCount;
 
     private string _tripStatus = BoatDailyTripStatus.Open;
     private string? _documentNumber;
     private string _selectedBoatName = string.Empty;
     private string _selectedRouteScheduleName = string.Empty;
+
+    private string TripInfoClass =>
+        !string.IsNullOrWhiteSpace(_documentNumber)
+            ? "pa-4 ct-trip-info-generated"
+            : "pa-4";
+
+    private string DocumentTooltip =>
+        string.IsNullOrWhiteSpace(_documentNumber)
+            ? "Documento pendiente"
+            : $"Documento generado: {_documentNumber}";
+
+    private string GenerateTicketsButtonText =>
+        SelectedTicketCount > 0
+            ? $"Imprimir seleccionados ({SelectedTicketCount})"
+            : "Generar boletos";
+
+    private int SelectedTicketCount => _selectedTicketIds.Count;
 
     protected override async Task OnInitializedAsync()
     {
@@ -229,12 +232,22 @@
     {
         _boatId = value;
         _boatRouteScheduleId = null;
+
         _routeSchedules.Clear();
         _tickets.Clear();
+        _outboundTickets.Clear();
+        _returnTickets.Clear();
+        _selectedTicketIds.Clear();
+        _rowStatus.Clear();
+        _rowLoading.Clear();
+
         _tripLoaded = false;
         _isLocked = false;
         _documentNumber = null;
         _tripStatus = BoatDailyTripStatus.Open;
+        _capacity = 0;
+        _outboundCount = 0;
+        _returnCount = 0;
 
         if (!_boatId.HasValue)
             return;
@@ -275,7 +288,13 @@
             _tripStatus = trip.Status;
             _isLocked = trip.IsLocked;
             _documentNumber = trip.DocumentNumber;
-            _selectedBoatName = _boats.FirstOrDefault(x => x.Id == _boatId.Value)?.Name ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(_documentNumber))
+                Notifications.Warning($"Documento generado: {_documentNumber}");
+
+            var selectedBoat = _boats.FirstOrDefault(x => x.Id == _boatId.Value);
+            _selectedBoatName = selectedBoat?.Name ?? string.Empty;
+            _capacity = (selectedBoat?.Capacity ?? 0) + (selectedBoat?.ExtraCapacity ?? 0);
 
             var selectedRouteSchedule = _routeSchedules.FirstOrDefault(x => x.Id == _boatRouteScheduleId.Value);
             _selectedRouteScheduleName = selectedRouteSchedule is null
@@ -284,6 +303,7 @@
 
             _tickets = await TicketService.GetMonitorByScheduleAndDateAsync(_boatRouteScheduleId.Value, tripDateUtc);
 
+            SplitTickets();
             _tripLoaded = true;
         }
         catch (Exception ex)
@@ -296,27 +316,120 @@
         }
     }
 
+    private void SplitTickets()
+    {
+        _outboundTickets = _tickets
+            .Where(x => IsOutbound(x.TripType))
+            .OrderBy(x => x.PassengerName)
+            .ToList();
+
+        _returnTickets = _tickets
+            .Where(x => IsReturn(x.TripType))
+            .OrderBy(x => x.PassengerName)
+            .ToList();
+
+        _outboundCount = _outboundTickets.Count;
+        _returnCount = _returnTickets.Count;
+
+        var validTicketIds = _tickets
+            .Where(x => x.Id != Guid.Empty)
+            .Select(x => x.Id)
+            .ToHashSet();
+
+        _selectedTicketIds.RemoveWhere(x => !validTicketIds.Contains(x));
+    }
+
     private async Task GenerateTickets()
     {
         if (!_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
 
-        if (_isLocked)
-        {
-            Notifications.Warning("El viaje ya está bloqueado.");
+        var isPrintSelected = _selectedTicketIds.Any();
+
+        var confirmed = await ConfirmAsync(
+            isPrintSelected ? "Confirmar impresión" : "Confirmar generación",
+            isPrintSelected
+                ? $"¿Desea imprimir los {_selectedTicketIds.Count} boletos seleccionados?"
+                : "¿Desea generar los boletos pendientes de este viaje?",
+            isPrintSelected ? "Imprimir" : "Generar");
+
+        if (!confirmed)
             return;
-        }
 
         try
         {
-            await TicketService.GenerateForScheduleAndDateAsync(_boatRouteScheduleId.Value, _tripDate.Value);
-            Notifications.Success("Boletos generados correctamente.");
-            await LoadTrip();
+            _generatingTickets = true;
+
+            if (isPrintSelected)
+            {
+                await PrintSelectedTickets();
+            }
+            else
+            {
+                await TicketService.GenerateForScheduleAndDateAsync(
+                    _boatRouteScheduleId.Value,
+                    ToUtcDate(_tripDate.Value));
+
+                Notifications.Success("Boletos generados correctamente.");
+                await LoadTrip();
+            }
         }
         catch (Exception ex)
         {
             Notifications.Error(ex.Message);
         }
+        finally
+        {
+            _generatingTickets = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PrintSelectedTickets()
+    {
+        var selected = _selectedTicketIds.ToList();
+
+        foreach (var ticketId in selected)
+        {
+            _rowLoading.Add(ticketId);
+            _rowStatus.Remove(ticketId);
+        }
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        var success = 0;
+        var errors = 0;
+
+        foreach (var ticketId in selected)
+        {
+            try
+            {
+                await TicketService.MarkPrintedAsync(ticketId);
+
+                _rowStatus[ticketId] = "Impreso";
+                success++;
+            }
+            catch (Exception ex)
+            {
+                _rowStatus[ticketId] = ex.Message;
+                errors++;
+            }
+            finally
+            {
+                _rowLoading.Remove(ticketId);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+
+        _selectedTicketIds.Clear();
+
+        await LoadTrip();
+
+        if (errors == 0)
+            Notifications.Success($"Boletos impresos: {success}.");
+        else
+            Notifications.Warning($"Impresos: {success}. Errores: {errors}.");
     }
 
     private async Task OpenGenericTicket()
@@ -324,17 +437,11 @@
         if (!_boatId.HasValue || !_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
 
-        if (_isLocked)
-        {
-            Notifications.Warning("El viaje ya está bloqueado.");
-            return;
-        }
-
         var parameters = new DialogParameters
         {
             ["BoatId"] = _boatId.Value,
             ["BoatRouteScheduleId"] = _boatRouteScheduleId.Value,
-            ["TripDate"] = _tripDate.Value
+            ["TripDate"] = ToUtcDate(_tripDate.Value)
         };
 
         var options = new DialogOptions
@@ -351,37 +458,170 @@
             await LoadTrip();
     }
 
-    private async Task GenerateTripDocument()
+    private async Task OpenGenerateDocumentDialog()
     {
-        if (!_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
+        if (!_boatId.HasValue || !_boatRouteScheduleId.HasValue || !_tripDate.HasValue)
             return;
+
+        var parameters = new DialogParameters
+        {
+            ["BoatId"] = _boatId.Value,
+            ["BoatRouteScheduleId"] = _boatRouteScheduleId.Value,
+            ["TripDate"] = ToUtcDate(_tripDate.Value)
+        };
+
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await Dialog.ShowAsync<GenerateTripDocumentDialog>(
+            "Generar documento del viaje",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+            await LoadTrip();
+    }
+
+    private async Task MarkPrinted(TicketListItem item)
+    {
+        if (item.Id == Guid.Empty)
+            return;
+
+        var confirmed = await ConfirmAsync(
+            item.IsPrinted ? "Confirmar reimpresión" : "Confirmar impresión",
+            item.IsPrinted
+                ? $"¿Desea registrar la reimpresión del boleto {item.TicketNumber}?"
+                : $"¿Desea registrar la impresión del boleto {item.TicketNumber}?",
+            item.IsPrinted ? "Reimprimir" : "Imprimir");
+
+        if (!confirmed)
+            return;
+
+        _rowLoading.Add(item.Id);
+        _rowStatus.Remove(item.Id);
+
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
 
         try
         {
-            await TicketService.GenerateForScheduleAndDateAsync(_boatRouteScheduleId.Value, _tripDate.Value);
-            await BoatDailyTripService.GenerateDocumentAsync(_boatRouteScheduleId.Value, _tripDate.Value);
+            await TicketService.MarkPrintedAsync(item.Id);
 
-            Notifications.Success("Documento del viaje generado. El viaje quedó bloqueado.");
+            _rowStatus[item.Id] = "Impreso";
+
             await LoadTrip();
+
+            Notifications.Success(item.IsPrinted
+                ? "Reimpresión registrada correctamente."
+                : "Impresión registrada correctamente.");
         }
         catch (Exception ex)
         {
+            _rowStatus[item.Id] = ex.Message;
             Notifications.Error(ex.Message);
+        }
+        finally
+        {
+            _rowLoading.Remove(item.Id);
+            await InvokeAsync(StateHasChanged);
         }
     }
 
-    private async Task MarkPrinted(Guid ticketId)
+    private async Task<bool> ConfirmAsync(string title, string message, string confirmText)
     {
-        try
+        var parameters = new DialogParameters
         {
-            await TicketService.MarkPrintedAsync(ticketId);
-            Notifications.Success("Boleto actualizado correctamente.");
-            await LoadTrip();
-        }
-        catch (Exception ex)
+            ["Title"] = title,
+            ["Message"] = message,
+            ["ConfirmText"] = confirmText,
+            ["ConfirmColor"] = Color.Primary
+        };
+
+        var options = new DialogOptions
         {
-            Notifications.Error(ex.Message);
+            MaxWidth = MaxWidth.ExtraSmall,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await Dialog.ShowAsync<ConfirmDialog>(title, parameters, options);
+        var result = await dialog.Result;
+
+        return !result.Canceled;
+    }
+
+    private void ToggleSelection(TicketListItem item, ChangeEventArgs e)
+    {
+        if (!CanSelect(item))
+            return;
+
+        var selected = e.Value is bool value && value;
+
+        if (selected)
+            _selectedTicketIds.Add(item.Id);
+        else
+            _selectedTicketIds.Remove(item.Id);
+
+        StateHasChanged();
+    }
+
+    private void ToggleAll(List<TicketListItem> items, ChangeEventArgs e)
+    {
+        var selected = e.Value is bool value && value;
+
+        foreach (var item in items.Where(CanSelect))
+        {
+            if (selected)
+                _selectedTicketIds.Add(item.Id);
+            else
+                _selectedTicketIds.Remove(item.Id);
         }
+
+        StateHasChanged();
+    }
+
+    private bool AreAllSelectableSelected(List<TicketListItem> items)
+    {
+        var ids = items
+            .Where(CanSelect)
+            .Select(x => x.Id)
+            .ToList();
+
+        return ids.Any() &&
+               ids.All(x => _selectedTicketIds.Contains(x));
+    }
+
+    private bool IsSelected(TicketListItem item)
+    {
+        return item.Id != Guid.Empty &&
+               _selectedTicketIds.Contains(item.Id);
+    }
+
+    private bool CanSelect(TicketListItem item)
+    {
+        return item.Id != Guid.Empty && !IsRowLoading(item);
+    }
+
+    private string GetRowStatus(TicketListItem item)
+    {
+        if (item.Id == Guid.Empty)
+            return string.Empty;
+
+        return _rowStatus.TryGetValue(item.Id, out var status)
+            ? status
+            : string.Empty;
+    }
+
+    private bool IsRowLoading(TicketListItem item)
+    {
+        return item.Id != Guid.Empty &&
+               _rowLoading.Contains(item.Id);
     }
 
     private void GoToCreateReservation()
@@ -389,30 +629,160 @@
         Navigation.NavigateTo("/reservations/create");
     }
 
+    private RenderFragment TicketsTable(List<TicketListItem> items) => @<MudTable Items="items"
+                                                                                  Dense="true"
+                                                                                  Hover="true"
+                                                                                  Bordered="true"
+                                                                                  Loading="_loading">
+    <HeaderContent>
+        <MudTh Style="width:48px">
+            <input type="checkbox"
+                   checked="@AreAllSelectableSelected(items)"
+                   disabled="@_generatingTickets"
+                   @onchange="@((ChangeEventArgs e) => ToggleAll(items, e))" />
+        </MudTh>
+
+        <MudTh>Boleto</MudTh>
+        <MudTh>Documento</MudTh>
+        <MudTh>Pasajero</MudTh>
+        <MudTh>Viaje</MudTh>
+        <MudTh>Tipo</MudTh>
+        <MudTh>Reimpresión</MudTh>
+        <MudTh>Acciones</MudTh>
+    </HeaderContent>
+
+    <RowTemplate>
+        <MudTd>
+            <input type="checkbox"
+                   checked="@IsSelected(context)"
+                   disabled="@(!CanSelect(context) || _generatingTickets)"
+                   @onchange="@((ChangeEventArgs e) => ToggleSelection(context, e))" />
+        </MudTd>
+
+        <MudTd>@context.TicketNumber</MudTd>
+        <MudTd>@context.DocumentNumber</MudTd>
+        <MudTd>@context.PassengerName</MudTd>
+        <MudTd>@context.TripType</MudTd>
+
+        <MudTd>
+            <MudChip T="string"
+                     Size="Size.Small"
+                     Color="@(context.IsGeneric ? Color.Warning : Color.Info)">
+                @(context.IsGeneric ? "Genérico" : "Reserva")
+            </MudChip>
+        </MudTd>
+
+        <MudTd>@context.ReprintCount</MudTd>
+
+        <MudTd>
+            @if (IsRowLoading(context))
+                        {
+            <MudProgressLinear Indeterminate="true"
+                               Color="Color.Primary"
+                               Class="my-2" />
+                        }
+                        else
+                        {
+            <MudStack Row="true"
+                      Spacing="1"
+                      AlignItems="AlignItems.Center">
+
+                @if (!string.IsNullOrWhiteSpace(GetRowStatus(context)))
+                                {
+                <MudTooltip Text="@GetRowStatus(context)">
+                    <MudIcon Icon="@(GetRowStatus(context) == "Impreso"
+                                                                                ? Icons.Material.Filled.CheckCircle
+                                                                                : Icons.Material.Filled.Error)"
+                                                                                                              Color="@(GetRowStatus(context) == "Impreso"
+                                                                                  ? Color.Success
+                                                                                  : Color.Error)" />
+                                                                                   </MudTooltip>
+                }
+                                else
+                {
+                    <MudTooltip Text="Estado impresión">
+                        <MudIcon Icon="@(context.IsPrinted
+                                                                                    ? Icons.Material.Filled.CheckCircle
+                                                                                : Icons.Material.Filled.Cancel)"
+                             Color="@(context.IsPrinted
+                                                                                  ? Color.Success
+                                                                                  : Color.Error)" />
+                </MudTooltip>
+                                }
+
+                @if (context.Id != Guid.Empty)
+                {
+                    <MudButton Variant="Variant.Text"
+                               Size="Size.Small"
+                               Color="Color.Primary"
+                               Disabled="@_generatingTickets"
+                               StartIcon="@Icons.Material.Filled.Print"
+                               OnClick="@(() => MarkPrinted(context))">
+                        @(context.IsPrinted ? "Reimpresión" : "Imprimir")
+                    </MudButton>
+                }
+            </MudStack>
+                        }
+        </MudTd>
+    </RowTemplate>
+
+    <NoRecordsContent>
+        <MudText>No existen pasajeros o boletos para este segmento.</MudText>
+    </NoRecordsContent>
+
+    <PagerContent>
+        <MudTablePager />
+    </PagerContent>
+</MudTable>;
+
     private static DateTime ToUtcDate(DateTime date)
-    {
-        return DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
-    }
+{
+    return DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+}
 
-    private static Color GetTripStatusColor(string status)
-    {
-        return status switch
-        {
-            BoatDailyTripStatus.Open => Color.Info,
-            BoatDailyTripStatus.DocumentGenerated => Color.Warning,
-            BoatDailyTripStatus.Closed => Color.Success,
-            _ => Color.Default
-        };
-    }
+private static bool IsOutbound(string? value)
+{
+    return value is "Outbound" or "Ida";
+}
 
-    private static string GetTripStatusText(string status)
+private static bool IsReturn(string? value)
+{
+    return value is "Return" or "Retorno";
+}
+
+private static Color GetAvailabilityColor(int count, int capacity)
+{
+    if (capacity <= 0)
+        return Color.Default;
+
+    if (count >= capacity)
+        return Color.Error;
+
+    if (count >= capacity * 0.8)
+        return Color.Warning;
+
+    return Color.Success;
+}
+
+private static Color GetTripStatusColor(string status)
+{
+    return status switch
     {
-        return status switch
-        {
-            BoatDailyTripStatus.Open => "Abierto",
-            BoatDailyTripStatus.DocumentGenerated => "Documento generado",
-            BoatDailyTripStatus.Closed => "Cerrado",
-            _ => status
-        };
-    }
+        BoatDailyTripStatus.Open => Color.Info,
+        BoatDailyTripStatus.DocumentGenerated => Color.Warning,
+        BoatDailyTripStatus.Closed => Color.Success,
+        _ => Color.Default
+    };
+}
+
+private static string GetTripStatusText(string status)
+{
+    return status switch
+    {
+        BoatDailyTripStatus.Open => "Abierto",
+        BoatDailyTripStatus.DocumentGenerated => "Documento generado",
+        BoatDailyTripStatus.Closed => "Cerrado",
+        _ => status
+    };
+}
 }

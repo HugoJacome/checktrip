@@ -342,9 +342,9 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
         if (trip is null)
             throw new Exception("Viaje no encontrado.");
 
-        if (trip.Status == BoatDailyTripStatus.DocumentGenerated ||
-            trip.Status == BoatDailyTripStatus.Closed)
-            throw new Exception("El viaje ya tiene documento generado o está cerrado.");
+        //if (trip.Status == BoatDailyTripStatus.DocumentGenerated ||
+        //    trip.Status == BoatDailyTripStatus.Closed)
+        //    throw new Exception("El viaje ya tiene documento generado o está cerrado.");
 
         if (trip.Crew is null)
         {
@@ -504,7 +504,6 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
             .ThenBy(x => x.Customer != null ? x.Customer.FullName : x.GenericPassengerName)
             .ToListAsync();
     }
-
     public async Task<int> CountPassengerTripsByBoatDailyTripAsync(Guid boatDailyTripId)
     {
         var tenantId = _tenant.GetTenantId();
@@ -603,9 +602,9 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
         if (trip is null)
             throw new Exception("Viaje no encontrado.");
 
-        if (trip.Status == BoatDailyTripStatus.DocumentGenerated ||
-            trip.Status == BoatDailyTripStatus.Closed)
-            throw new Exception("El viaje ya tiene documento generado o está cerrado.");
+        //if (trip.Status == BoatDailyTripStatus.DocumentGenerated ||
+        //    trip.Status == BoatDailyTripStatus.Closed)
+        //    throw new Exception("El viaje ya tiene documento generado o está cerrado.");
 
         trip.BoatRouteScheduleId = newSchedule.Id;
         trip.BoatId = newSchedule.BoatId;
@@ -643,5 +642,45 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
                 Schedule = x.Schedule.Name
             })
             .ToListAsync();
+    }
+    public async Task<List<CrewMemberCatalogItem>> GetCrewMembersByBoatAsync(Guid boatId)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.CrewMembers
+            .AsNoTracking()
+            .Where(x =>
+                x.TenantId == tenantId &&
+                x.BoatId == boatId &&
+                x.IsActive)
+            .OrderBy(x => x.FullName)
+            .Select(x => new CrewMemberCatalogItem
+            {
+                Id = x.Id,
+                FullName = x.FullName,
+                DocumentNumber = x.DocumentNumber,
+                CanBeCaptain = x.CanBeCaptain,
+                CanBeSailor = x.CanBeSailor
+            })
+            .ToListAsync();
+    }
+
+    public async Task<BoatDailyTrip?> GetTripWithCrewByScheduleAndDateAsync(
+        Guid boatRouteScheduleId,
+        DateOnly tripDate)
+    {
+        var tenantId = _tenant.GetTenantId();
+
+        await using var db = await _dbFactory.CreateDbContextAsync();
+
+        return await db.BoatDailyTrips
+            .AsNoTracking()
+            .Include(x => x.Crew)
+            .FirstOrDefaultAsync(x =>
+                x.TenantId == tenantId &&
+                x.BoatRouteScheduleId == boatRouteScheduleId &&
+                x.TripDate == tripDate);
     }
 }

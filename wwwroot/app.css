@@ -610,3 +610,9 @@ body {
         padding: 32px 20px !important;
     }
 }
+
+.ct-trip-info-generated {
+    padding: 16px;
+    background: #fff8e1;
+    border: 1px solid #ffe0a3;
+}
