@@ -42,9 +42,9 @@
                                    RequiredError="El tipo de boleto es obligatorio."
                                    Variant="Variant.Outlined"
                                    Margin="Margin.Dense">
-                            <MudSelectItem Value="@("Outbound")">Ida</MudSelectItem>
-                            <MudSelectItem Value="@("Return")">Retorno</MudSelectItem>
-                            <MudSelectItem Value="@("Generic")">Genérico</MudSelectItem>
+                            <MudSelectItem Value="@TicketTypeOutbound">Ida</MudSelectItem>
+                            <MudSelectItem Value="@TicketTypeReturn">Retorno</MudSelectItem>
+                            <MudSelectItem Value="@TicketTypeComplete">Completo</MudSelectItem>
                         </MudSelect>
                     </MudItem>
                 </MudGrid>
@@ -73,12 +73,16 @@
 
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
 
+    private const string TicketTypeOutbound = "Outbound";
+    private const string TicketTypeReturn = "Return";
+    private const string TicketTypeComplete = "Complete";
+
     private MudForm? _form;
     private bool _saving;
 
     private string _passengerName = string.Empty;
     private string? _documentNumber;
-    private string _ticketType = "Generic";
+    private string _ticketType = TicketTypeOutbound;
 
     private async Task Save()
     {
@@ -94,15 +98,25 @@
         {
             _saving = true;
 
-            await TicketService.CreateGenericTicketAsync(
-                BoatId,
-                TripDate.Date,
-                _passengerName.Trim(),
-                string.IsNullOrWhiteSpace(_documentNumber) ? null : _documentNumber.Trim(),
-                _ticketType,
-                BoatRouteScheduleId);
+            var passengerName = _passengerName.Trim();
+            var documentNumber = string.IsNullOrWhiteSpace(_documentNumber)
+                ? null
+                : _documentNumber.Trim();
 
-            Notifications.Success("Boleto genérico creado correctamente.");
+            if (_ticketType == TicketTypeComplete)
+            {
+                await CreateGenericTicketAsync(passengerName, documentNumber, TicketTypeOutbound);
+                await CreateGenericTicketAsync(passengerName, documentNumber, TicketTypeReturn);
+
+                Notifications.Success("Boletos genéricos de ida y retorno creados correctamente.");
+            }
+            else
+            {
+                await CreateGenericTicketAsync(passengerName, documentNumber, _ticketType);
+
+                Notifications.Success("Boleto genérico creado correctamente.");
+            }
+
             MudDialog.Close(DialogResult.Ok(true));
         }
         catch (Exception ex)
@@ -113,6 +127,20 @@
         {
             _saving = false;
         }
+    }
+
+    private Task CreateGenericTicketAsync(
+        string passengerName,
+        string? documentNumber,
+        string ticketType)
+    {
+        return TicketService.CreateGenericTicketAsync(
+            BoatId,
+            TripDate.Date,
+            passengerName,
+            documentNumber,
+            ticketType,
+            BoatRouteScheduleId);
     }
 
     private void Cancel()

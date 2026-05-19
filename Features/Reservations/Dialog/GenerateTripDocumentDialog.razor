@@ -22,23 +22,6 @@
                     </MudItem>
 
                     <MudItem xs="12" md="6">
-                        <MudSelect T="Guid?"
-                                   Label="Seleccionar capitán"
-                                   Value="_selectedCaptainId"
-                                   ValueChanged="OnCaptainSelected"
-                                   Clearable="true"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense">
-                            @foreach (var item in _captains)
-                            {
-                                <MudSelectItem T="Guid?" Value="@item.Id">
-                                    @item.DisplayName
-                                </MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-
-                    <MudItem xs="12" md="6">
                         <MudTextField Label="Nombre capitán"
                                       @bind-Value="_model.CaptainName"
                                       Required="true"
@@ -60,23 +43,6 @@
                     </MudItem>
 
                     <MudItem xs="12" md="6">
-                        <MudSelect T="Guid?"
-                                   Label="Seleccionar marinero 1"
-                                   Value="_selectedSailor1Id"
-                                   ValueChanged="OnSailor1Selected"
-                                   Clearable="true"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense">
-                            @foreach (var item in _sailors)
-                            {
-                                <MudSelectItem T="Guid?" Value="@item.Id">
-                                    @item.DisplayName
-                                </MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-
-                    <MudItem xs="12" md="6">
                         <MudTextField Label="Marinero 1"
                                       @bind-Value="_model.Sailor1Name"
                                       Variant="Variant.Outlined"
@@ -91,23 +57,6 @@
                     </MudItem>
 
                     <MudItem xs="12" md="6">
-                        <MudSelect T="Guid?"
-                                   Label="Seleccionar marinero 2"
-                                   Value="_selectedSailor2Id"
-                                   ValueChanged="OnSailor2Selected"
-                                   Clearable="true"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense">
-                            @foreach (var item in _sailors)
-                            {
-                                <MudSelectItem T="Guid?" Value="@item.Id">
-                                    @item.DisplayName
-                                </MudSelectItem>
-                            }
-                        </MudSelect>
-                    </MudItem>
-
-                    <MudItem xs="12" md="6">
                         <MudTextField Label="Marinero 2"
                                       @bind-Value="_model.Sailor2Name"
                                       Variant="Variant.Outlined"
@@ -119,23 +68,6 @@
                                       @bind-Value="_model.Sailor2Document"
                                       Variant="Variant.Outlined"
                                       Margin="Margin.Dense" />
-                    </MudItem>
-
-                    <MudItem xs="12" md="6">
-                        <MudSelect T="Guid?"
-                                   Label="Seleccionar marinero 3"
-                                   Value="_selectedSailor3Id"
-                                   ValueChanged="OnSailor3Selected"
-                                   Clearable="true"
-                                   Variant="Variant.Outlined"
-                                   Margin="Margin.Dense">
-                            @foreach (var item in _sailors)
-                            {
-                                <MudSelectItem T="Guid?" Value="@item.Id">
-                                    @item.DisplayName
-                                </MudSelectItem>
-                            }
-                        </MudSelect>
                     </MudItem>
 
                     <MudItem xs="12" md="6">
@@ -190,77 +122,12 @@
 
     private GenerateTripDocumentModel _model = new();
 
-    private List<CrewMemberCatalogItem> _crewMembers = [];
-    private List<CrewMemberCatalogItem> _captains = [];
-    private List<CrewMemberCatalogItem> _sailors = [];
-
-    private Guid? _selectedCaptainId;
-    private Guid? _selectedSailor1Id;
-    private Guid? _selectedSailor2Id;
-    private Guid? _selectedSailor3Id;
-
     protected override async Task OnInitializedAsync()
     {
         _model = await BoatDailyTripService.GetGenerateDocumentModelAsync(
             BoatId,
             BoatRouteScheduleId,
             TripDate);
-
-        _crewMembers = await BoatDailyTripService.GetCrewMembersByBoatAsync(BoatId);
-        _captains = _crewMembers.Where(x => x.CanBeCaptain).ToList();
-        _sailors = _crewMembers.Where(x => x.CanBeSailor).ToList();
-    }
-
-    private void OnCaptainSelected(Guid? value)
-    {
-        _selectedCaptainId = value;
-
-        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
-
-        if (item is null)
-            return;
-
-        _model.CaptainName = item.FullName;
-        _model.CaptainDocument = item.DocumentNumber;
-    }
-
-    private void OnSailor1Selected(Guid? value)
-    {
-        _selectedSailor1Id = value;
-
-        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
-
-        if (item is null)
-            return;
-
-        _model.Sailor1Name = item.FullName;
-        _model.Sailor1Document = item.DocumentNumber;
-    }
-
-    private void OnSailor2Selected(Guid? value)
-    {
-        _selectedSailor2Id = value;
-
-        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
-
-        if (item is null)
-            return;
-
-        _model.Sailor2Name = item.FullName;
-        _model.Sailor2Document = item.DocumentNumber;
-    }
-
-    private void OnSailor3Selected(Guid? value)
-    {
-        _selectedSailor3Id = value;
-
-        var item = _crewMembers.FirstOrDefault(x => x.Id == value);
-
-        if (item is null)
-            return;
-
-        _model.Sailor3Name = item.FullName;
-        _model.Sailor3Document = item.DocumentNumber;
     }
 
     private async Task SaveAsync()

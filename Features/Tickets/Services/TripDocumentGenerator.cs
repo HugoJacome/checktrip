@@ -7,6 +7,10 @@ namespace CheckTrip.Web.Features.Tickets.Services;
 
 public static class TripDocumentGenerator
 {
+    private const string FontSizeNormal = "14";
+    private const string FontSizeSmall = "12";
+    private const string FontSizeTitle = "18";
+
     public static byte[] GeneratePassengerListDocument(
         BoatDailyTrip trip,
         BoatRouteSchedule schedule,
@@ -25,68 +29,19 @@ public static class TripDocumentGenerator
 
             var body = new Body();
 
-            body.Append(CreateTitle("ARMADA DEL ECUADOR"));
-            body.Append(CreateTitle("CAPITANÍA DE PUERTO DE PUERTO AYORA"));
-            body.Append(CreateParagraph("LISTA DE PASAJEROS", true, JustificationValues.Center));
-
-            body.Append(CreateSpacing());
-
-            body.Append(CreateSectionTitle("I. INFORMACIÓN DEL VIAJE"));
-            body.Append(CreateInfoTable([
-                ("Fecha", trip.TripDate.ToString("yyyy-MM-dd")),
-                ("Puerto de Zarpe", schedule.Route.Origin),
-                ("Hora estimada de Zarpe", schedule.Schedule.DepartureTime.ToString(@"hh\:mm")),
-                ("Puerto de Arribo", schedule.Route.Destination),
-                ("Hora estimada de Arribo", ""),
-                ("Actividad", schedule.Route.Type ?? "")
-            ]));
-
-            body.Append(CreateSectionTitle("II. INFORMACIÓN DE LA NAVE"));
-            body.Append(CreateInfoTable([
-                ("Nombres", schedule.Boat.Name),
-                ("Matrícula", schedule.Boat.RegistrationNumber ?? ""),
-                ("Capacidad Pasajeros", (schedule.Boat.Capacity + schedule.Boat.ExtraCapacity).ToString()),
-                ("Capacidad Tripulantes", "4")
-            ]));
-
-            body.Append(CreateSectionTitle("III. INFORMACIÓN DEL ARMADOR"));
-            body.Append(CreateInfoTable([
-                ("Nombres", schedule.Boat.OwnerName ?? ""),
-                ("Ruc", schedule.Boat.OwnerRuc ?? ""),
-                ("e-mail", schedule.Boat.OwnerEmail ?? ""),
-                ("Telf.", schedule.Boat.OwnerPhone ?? "")
-            ]));
-
-            body.Append(CreateSectionTitle("IV. RESPONSABLE DE LOS PASAJEROS"));
-            body.Append(CreateInfoTable([
-                ("Nombres", crew.CaptainName),
-                ("Cédula Nro.", crew.CaptainDocument ?? "")
-            ]));
-
-            body.Append(CreateSectionTitle("V. INFORMACIÓN DE LA TRIPULACIÓN"));
-            body.Append(CreateInfoTable([
-                ("Capitán", crew.CaptainName),
-                ("Cédula Nro.", crew.CaptainDocument ?? ""),
-                ("Marinero 1", crew.Sailor1Name ?? ""),
-                ("Cédula Marinero 1", crew.Sailor1Document ?? ""),
-                ("Marinero 2", crew.Sailor2Name ?? ""),
-                ("Cédula Marinero 2", crew.Sailor2Document ?? ""),
-                ("Marinero 3", crew.Sailor3Name ?? ""),
-                ("Cédula Marinero 3", crew.Sailor3Document ?? "")
-            ]));
+            body.Append(CreateHeader());
+            body.Append(CreateSpacer(120));
+            body.Append(CreateTravelAndBoatInfoTable(trip, schedule));
+            //body.Append(CreateSpacer(40));
+            body.Append(CreateOwnerResponsibleAndCrewTable(schedule, crew));
 
             body.Append(CreateSectionTitle("VI. LISTA DE PASAJEROS"));
             body.Append(CreatePassengerTable(passengers));
 
-            body.Append(CreateSpacing());
+            body.Append(CreateSpacer(10)); 
+            body.Append(CreateResponsibilityAndSignatureTable());
 
-            body.Append(CreateParagraph(
-                "Declaración de responsabilidad: El Capitán es la máxima autoridad y responsable directo de la navegación, maniobras y gobierno de la nave como de la seguridad de los pasajeros. Declaran que la información detallada en el presente formulario es verdadera.",
-                false,
-                JustificationValues.Both));
-
-            body.Append(CreateSpacing());
-            body.Append(CreateSignatureTable());
+            body.Append(CreateSectionProperties());
 
             mainPart.Document.Append(body);
             mainPart.Document.Save();
@@ -95,85 +50,208 @@ public static class TripDocumentGenerator
         return stream.ToArray();
     }
 
-    private static Paragraph CreateTitle(string text)
+    private static Paragraph CreateHeader()
     {
-        return CreateParagraph(text, true, JustificationValues.Center, "24");
-    }
-
-    private static Paragraph CreateSectionTitle(string text)
-    {
-        return CreateParagraph(text, true, JustificationValues.Left, "22");
-    }
-
-    private static Paragraph CreateSpacing()
-    {
-        return new Paragraph(new Run(new Text(" ")));
-    }
-
-    private static Paragraph CreateParagraph(
-        string text,
-        bool bold,
-        JustificationValues justification,
-        string fontSize = "20")
-    {
-        var runProperties = new RunProperties
-        {
-            FontSize = new FontSize { Val = fontSize }
-        };
-
-        if (bold)
-            runProperties.Append(new Bold());
-
-        var paragraph = new Paragraph(
+        return new Paragraph(
             new ParagraphProperties(
-                new Justification { Val = justification }),
-            new Run(runProperties, new Text(text ?? string.Empty)));
-
-        return paragraph;
+                new Justification { Val = JustificationValues.Center }),
+            CreateRun("ARMADA DEL ECUADOR", true, FontSizeTitle),
+            new Run(new Break()),
+            CreateRun("CAPITANÍA DE PUERTO DE PUERTO AYORA", true, FontSizeTitle));
     }
 
-    private static Table CreateInfoTable(IEnumerable<(string Label, string Value)> rows)
+    private static Table CreateTravelAndBoatInfoTable(
+    BoatDailyTrip trip,
+    BoatRouteSchedule schedule)
     {
-        var table = CreateBaseTable();
+        var table = CreateTable();
 
-        foreach (var row in rows)
-        {
-            table.Append(new TableRow(
-                CreateCell(row.Label, true),
-                CreateCell(row.Value, false)));
-        }
+        table.Append(new TableRow(
+            CreateCell("I. INFORMACIÓN DEL VIAJE", true, 5000, GridSpan(4), Shading()),
+            CreateCell("II. INFORMACIÓN DE LA NAVE", true, 5000, GridSpan(4), Shading())
+        ));
+
+        table.Append(CreateEightColumnRow(
+            "Fecha:", trip.TripDate.ToString("dd/MM/yyyy"),
+            "Puerto de Zarpe:", schedule.Route.Origin ?? "",
+            "Nombres:", schedule.Boat.Name,
+            "Capacidad Tripulantes:", "4"));
+
+        table.Append(CreateEightColumnRow(
+            "Actividad:", schedule.Route.Type ?? "",
+            "Puerto de Arribo:", schedule.Route.Destination ?? "",
+            "Matrícula:", schedule.Boat.RegistrationNumber ?? "",
+            "Capacidad Pasajeros:", (schedule.Boat.Capacity + schedule.Boat.ExtraCapacity).ToString()));
+
+        table.Append(CreateEightColumnRow(
+            "Hora estimada de Zarpe:", schedule.Schedule.DepartureTime.ToString(@"hh\:mm"),
+            "Hora estimada de Arribo:", "",
+            "", "",
+            "", ""));
 
         return table;
     }
 
-    private static Table CreatePassengerTable(List<ReservationPassengerTrip> passengers)
+    private static Table CreateOwnerResponsibleAndCrewTable(
+        BoatRouteSchedule schedule,
+        BoatDailyTripCrew crew)
     {
-        var table = CreateBaseTable();
+        var table = CreateTable();
 
         table.Append(new TableRow(
-            CreateCell("Nro.", true),
-            CreateCell("Nombres y Apellidos", true),
-            CreateCell("Cédula/Pasaporte", true),
-            CreateCell("Nacionalidad", true),
-            CreateCell("Edad", true),
-            CreateCell("Estatus", true),
-            CreateCell("Agencia", true),
-            CreateCell("Observación", true)
+            CreateCell("III. INFORMACIÓN DEL ARMADOR", true, 2500, GridSpan(2), Shading()),
+            CreateCell("IV. INFORMACIÓN RESPONSABLE DE LOS PASAJEROS", true, 3500, GridSpan(2), Shading()),
+            CreateCell("V. INFORMACIÓN DE LA TRIPULACIÓN", true, 4000, GridSpan(4), Shading())
+        ));
+
+        table.Append(new TableRow(
+            CreateCell("Nombres:", true, 900),
+            CreateCell(schedule.Boat.OwnerName ?? "", false, 1600),
+
+            CreateCell("Nombres:", true, 900),
+            CreateCell(crew.CaptainName ?? "", false, 2600),
+
+            CreateCell("Capitán:", true, 800),
+            CreateCell(crew.CaptainName ?? "", false, 1200),
+            CreateCell("Cédula Nro.:", true, 900),
+            CreateCell(crew.CaptainDocument ?? "", false, 1100)
+        ));
+
+        table.Append(new TableRow(
+            CreateCell("Ruc:", true, 900),
+            CreateCell(schedule.Boat.OwnerRuc ?? "", false, 1600),
+
+            CreateCell("Cédula Nro.:", true, 900),
+            CreateCell(crew.CaptainDocument ?? "", false, 2600),
+
+            CreateCell("Marinero:", true, 800),
+            CreateCell(crew.Sailor1Name ?? "", false, 1200),
+            CreateCell("Cédula Nro.:", true, 900),
+            CreateCell(crew.Sailor1Document ?? "", false, 1100)
+        ));
+
+        table.Append(new TableRow(
+            CreateCell("e-mail:", true, 900),
+            CreateCell(schedule.Boat.OwnerEmail ?? "", false, 1600),
+
+            CreateCell("Telf.:", true, 900),
+            CreateCell(schedule.Boat.OwnerPhone ?? "", false, 2600),
+
+            CreateCell("Marinero:", true, 800),
+            CreateCell(crew.Sailor2Name ?? "", false, 1200),
+            CreateCell("Cédula Nro.:", true, 900),
+            CreateCell(crew.Sailor2Document ?? "", false, 1100)
+        ));
+
+        table.Append(new TableRow(
+            CreateCell("Telf.:", true, 900),
+            CreateCell(schedule.Boat.OwnerPhone ?? "", false, 1600),
+
+            CreateCell("", false, 900),
+            CreateCell("", false, 2600),
+
+            CreateCell("Guía (De existir):", true, 800),
+            CreateCell(crew.Sailor3Name ?? "", false, 1200),
+            CreateCell("Cédula Nro.:", true, 900),
+            CreateCell(crew.Sailor3Document ?? "", false, 1100)
+        ));
+
+        return table;
+    }
+
+    private static TableRow CreateEightColumnRow(
+        string label1,
+        string value1,
+        string label2,
+        string value2,
+        string label3,
+        string value3,
+        string label4,
+        string value4)
+    {
+        return new TableRow(
+            CreateCell(label1, true, 1200),
+            CreateCell(value1, false, 1300),
+            CreateCell(label2, true, 1300),
+            CreateCell(value2, false, 1200),
+
+            CreateCell(label3, true, 1200),
+            CreateCell(value3, false, 1300),
+            CreateCell(label4, true, 1300),
+            CreateCell(value4, false, 1200)
+        );
+    }
+
+    private static Table CreatePassengerTable(List<ReservationPassengerTrip> passengers)
+    {
+        var table = CreateTable();
+
+        table.Append(new TableRow(
+            CreateCell("Check", true, 500, VerticalMergeRestart(), Shading()),
+            CreateCell("Nro.", true, 450, VerticalMergeRestart(), Shading()),
+            CreateCell("Nombres y Apellidos", true, 1900, VerticalMergeRestart(), Shading()),
+            CreateCell("Cédula/pasaporte", true, 1200, VerticalMergeRestart(), Shading()),
+            CreateCell("Nacionalidad", true, 900, VerticalMergeRestart(), Shading()),
+            CreateCell("Edad", true, 500, VerticalMergeRestart(), Shading()),
+            CreateCell("Estatus", true, 1200, GridSpan(3), Shading()),
+            CreateCell("Agencia de Turismo (De aplicar)", true, 1200, VerticalMergeRestart(), Shading()),
+            CreateCell("Telf. Emergencia", true, 900, VerticalMergeRestart(), Shading()),
+            CreateCell("Información adicional/observación", true, 1600, VerticalMergeRestart(), Shading())
+        ));
+
+        table.Append(new TableRow(
+            CreateCell("", true, 500, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 450, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 1900, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 1200, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 900, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 500, VerticalMergeContinue(), Shading()),
+            CreateCell("Res.", true, 400, Shading()),
+            CreateCell("Tra.", true, 400, Shading()),
+            CreateCell("Tur.", true, 400, Shading()),
+            CreateCell("", true, 1200, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 900, VerticalMergeContinue(), Shading()),
+            CreateCell("", true, 1600, VerticalMergeContinue(), Shading())
         ));
 
         var index = 1;
+        var passengerSegments = passengers
+            .GroupBy(x =>
+                x.CustomerId?.ToString()
+                ?? $"GEN-{x.GenericDocumentNumber}-{x.GenericPassengerName}")
+            .ToDictionary(
+                x => x.Key,
+                x => x.Select(s => s.SegmentType)
+                      .Distinct()
+                      .ToList());
 
         foreach (var passenger in passengers.OrderBy(x => GetPassengerName(x)))
         {
+            var status = GetPassengerTypeText(passenger.PassengerType);
+
+            var passengerKey =
+                passenger.CustomerId?.ToString()
+                ?? $"GEN-{passenger.GenericDocumentNumber}-{passenger.GenericPassengerName}";
+
+            var segments = passengerSegments[passengerKey];
+
+            var observation = GetObservation(
+                segments.Contains("Outbound"),
+                segments.Contains("Return"));
+
             table.Append(new TableRow(
-                CreateCell(index.ToString(), false),
-                CreateCell(GetPassengerName(passenger), false),
-                CreateCell(GetPassengerDocument(passenger), false),
-                CreateCell(passenger.Customer?.Nationality ?? "Ecuatoriana", false),
-                CreateCell(passenger.Customer?.Age?.ToString() ?? "", false),
-                CreateCell(GetPassengerTypeText(passenger.PassengerType), false),
-                CreateCell(passenger.Reservation?.Agency?.Name ?? "", false),
-                CreateCell(passenger.SegmentType == "Outbound" ? "Ida" : "Retorno", false)
+                CreateCell("SI", false, 500),
+                CreateCell(index.ToString(), false, 450),
+                CreateCell(GetPassengerName(passenger), false, 1900),
+                CreateCell(GetPassengerDocument(passenger), false, 1200),
+                CreateCell(passenger.Customer?.Nationality ?? "Ecuatoriana", false, 900),
+                CreateCell(passenger.Customer?.Age?.ToString() ?? "", false, 500),
+                CreateCell(status == "Residente" ? "X" : "", false, 400),
+                CreateCell(status == "Transeúnte" ? "X" : "", false, 400),
+                CreateCell(status == "Turista" ? "X" : "", false, 400),
+                CreateCell(passenger.Reservation?.Agency?.Name ?? "", false, 1200),
+                CreateCell("", false, 900),
+                CreateCell(observation, false, 1600)
             ));
 
             index++;
@@ -182,30 +260,86 @@ public static class TripDocumentGenerator
         return table;
     }
 
-    private static Table CreateSignatureTable()
+    private static Table CreateResponsibilityAndSignatureTable()
     {
-        var table = CreateBaseTable();
+        var table = CreateTable();
+
+        var declaration =
+            "Declaración de responsabilidad: El Capitán es la máxima autoridad y responsable directo de la navegación, maniobras y gobierno de la nave como de la seguridad de los pasajeros. Bajo citado contexto, en conjunto con el Armador, DECLARAN que la información detallada en el presente formulario es verdadera; quedando sujeto a las responsabilidades que correspondan por el ingreso de información y/o referencias no verdaderas, adulteradas, o falsificadas. Se enfatiza que la lista de pasajeros es un documento habilitante previo a la emisión del zarpe (Reglamento LONSEA; Arts. 184, 209, 210).";
 
         table.Append(new TableRow(
-            CreateCell("Firma y nombres Capitán de la Nave", true),
-            CreateCell("Firma y nombres Armador", true),
-            CreateCell("Firma y sello CAPAYO", true)
-        ));
-
-        table.Append(new TableRow(
-            CreateCell("\n\n\n", false),
-            CreateCell("\n\n\n", false),
-            CreateCell("\n\n\n", false)
+            CreateLongTextCell(declaration, 3600),
+            CreateSignatureCell("Firma y nombres Capitán de la Nave", 2100),
+            CreateSignatureCell("Firma y nombres Armador:", 2100),
+            CreateSignatureCell("Firma y sello de la División de Arribos y Zarpes CAPAYO:", 2200)
         ));
 
         return table;
     }
 
-    private static Table CreateBaseTable()
+    private static string GetObservation(
+    bool hasOutbound,
+    bool hasReturn)
+    {
+        if (hasOutbound && hasReturn)
+            return "";
+
+        if (hasOutbound)
+            return "Solo ida";
+
+        if (hasReturn)
+            return "Solo vuelta";
+
+        return "";
+    }
+
+    private static Paragraph CreateSectionTitle(string text)
+    {
+        return CreateParagraph(text, true, JustificationValues.Left, FontSizeNormal);
+    }
+
+    private static Paragraph CreateParagraph(
+        string text,
+        bool bold,
+        JustificationValues justification,
+        string fontSize)
+    {
+        return new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = justification },
+                new SpacingBetweenLines { After = "80" }),
+            CreateRun(text, bold, fontSize));
+    }
+
+    private static Paragraph CreateSpacer(int after)
+    {
+        return new Paragraph(
+            new ParagraphProperties(
+                new SpacingBetweenLines { After = after.ToString() }),
+            new Run(new Text("")));
+    }
+
+    private static Run CreateRun(string text, bool bold, string fontSize)
+    {
+        var runProperties = new RunProperties(
+            new RunFonts { Ascii = "Arial", HighAnsi = "Arial" },
+            new FontSize { Val = fontSize });
+
+        if (bold)
+            runProperties.Append(new Bold());
+
+        return new Run(runProperties, new Text(text ?? string.Empty)
+        {
+            Space = SpaceProcessingModeValues.Preserve
+        });
+    }
+
+    private static Table CreateTable()
     {
         var table = new Table();
 
-        var properties = new TableProperties(
+        table.AppendChild(new TableProperties(
+            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct },
             new TableBorders(
                 new TopBorder { Val = BorderValues.Single, Size = 4 },
                 new BottomBorder { Val = BorderValues.Single, Size = 4 },
@@ -214,30 +348,121 @@ public static class TripDocumentGenerator
                 new InsideHorizontalBorder { Val = BorderValues.Single, Size = 4 },
                 new InsideVerticalBorder { Val = BorderValues.Single, Size = 4 }
             ),
-            new TableWidth { Width = "5000", Type = TableWidthUnitValues.Pct });
-
-        table.AppendChild(properties);
+            new TableCellMarginDefault(
+                new TopMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                new BottomMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                new LeftMargin { Width = "40", Type = TableWidthUnitValues.Dxa },
+                new RightMargin { Width = "40", Type = TableWidthUnitValues.Dxa }
+            )));
 
         return table;
     }
 
-    private static TableCell CreateCell(string? text, bool bold)
+    private static TableRow CreateFourColumnRow(
+        string label1,
+        string value1,
+        string label2,
+        string value2)
     {
-        var runProperties = new RunProperties
-        {
-            FontSize = new FontSize { Val = "18" }
-        };
+        return new TableRow(
+            CreateCell(label1, true, 1800),
+            CreateCell(value1, false, 3200),
+            CreateCell(label2, true, 1800),
+            CreateCell(value2, false, 3200)
+        );
+    }
 
-        if (bold)
-            runProperties.Append(new Bold());
+    private static TableRow CreateSixColumnRow(
+        string label1,
+        string value1,
+        string label2,
+        string value2,
+        string label3,
+        string value3)
+    {
+        return new TableRow(
+            CreateCell(label1, true, 1100),
+            CreateCell(value1, false, 2200),
+            CreateCell(label2, true, 1100),
+            CreateCell(value2, false, 2200),
+            CreateCell(label3, true, 1100),
+            CreateCell(value3, false, 2300)
+        );
+    }
+
+    private static TableCell CreateCell(
+        string? text,
+        bool bold,
+        int width,
+        params OpenXmlElement[] properties)
+    {
+        var cellProperties = new TableCellProperties(
+            new TableCellWidth
+            {
+                Width = width.ToString(),
+                Type = TableWidthUnitValues.Dxa
+            },
+            new TableCellVerticalAlignment
+            {
+                Val = TableVerticalAlignmentValues.Center
+            });
+
+        foreach (var property in properties)
+            cellProperties.Append(property.CloneNode(true));
 
         return new TableCell(
-            new TableCellProperties(
-                new TableCellWidth { Type = TableWidthUnitValues.Auto }),
+            cellProperties,
             new Paragraph(
-                new Run(
-                    runProperties,
-                    new Text(text ?? string.Empty))));
+                new ParagraphProperties(
+                    new Justification { Val = JustificationValues.Center },
+                    new SpacingBetweenLines { Before = "0", After = "0" }),
+                CreateRun(text ?? "", bold, FontSizeSmall)));
+    }
+
+    private static GridSpan GridSpan(int value)
+    {
+        return new GridSpan { Val = value };
+    }
+
+    private static Shading Shading()
+    {
+        return new Shading
+        {
+            Val = ShadingPatternValues.Clear,
+            Color = "auto",
+            Fill = "D9EAF7"
+        };
+    }
+
+    private static VerticalMerge VerticalMergeRestart()
+    {
+        return new VerticalMerge { Val = MergedCellValues.Restart };
+    }
+
+    private static VerticalMerge VerticalMergeContinue()
+    {
+        return new VerticalMerge { Val = MergedCellValues.Continue };
+    }
+
+    private static SectionProperties CreateSectionProperties()
+    {
+        return new SectionProperties(
+            new PageSize
+            {
+                Width = 16840,
+                Height = 11900,
+                Orient = PageOrientationValues.Landscape
+            },
+            new PageMargin
+            {
+                Top = 720,
+                Right = 360,
+                Bottom = 720,
+                Left = 360,
+                Header = 360,
+                Footer = 360,
+                Gutter = 0
+            });
     }
 
     private static string GetPassengerName(ReservationPassengerTrip trip)
@@ -258,10 +483,79 @@ public static class TripDocumentGenerator
     {
         return type switch
         {
-            "Adult" => "Adulto",
-            "Infant" => "Infante",
-            "Courtesy" => "Cortesía",
-            _ => type ?? ""
+            "Resident" => "Residente",
+            "Residente" => "Residente",
+            "Transit" => "Transeúnte",
+            "Transeunte" => "Transeúnte",
+            "Transeúnte" => "Transeúnte",
+            "Tourist" => "Turista",
+            "Turista" => "Turista",
+            "Adult" => "Turista",
+            "Infant" => "Turista",
+            "Courtesy" => "Turista",
+            _ => "Turista"
         };
+    }
+    private static TableCell CreateLongTextCell(string text, int width)
+    {
+        var paragraph = new Paragraph(
+            new ParagraphProperties(
+                new Justification { Val = JustificationValues.Both },
+                new SpacingBetweenLines { Before = "0", After = "0" }));
+
+        paragraph.Append(CreateRun("Declaración de responsabilidad: ", true, FontSizeSmall));
+        paragraph.Append(CreateRun(
+            text.Replace("Declaración de responsabilidad:", "").Trim(),
+            false,
+            FontSizeSmall));
+
+        return new TableCell(
+            new TableCellProperties(
+                new TableCellWidth
+                {
+                    Width = width.ToString(),
+                    Type = TableWidthUnitValues.Dxa
+                },
+                new TableCellVerticalAlignment
+                {
+                    Val = TableVerticalAlignmentValues.Top
+                }),
+            paragraph);
+    }
+
+    private static TableCell CreateSignatureCell(string title, int width)
+    {
+        return new TableCell(
+            new TableCellProperties(
+                new TableCellWidth
+                {
+                    Width = width.ToString(),
+                    Type = TableWidthUnitValues.Dxa
+                },
+                new TableCellVerticalAlignment
+                {
+                    Val = TableVerticalAlignmentValues.Top
+                }),
+            new Paragraph(
+                new ParagraphProperties(
+                    new Justification { Val = JustificationValues.Center },
+                    new SpacingBetweenLines { Before = "0", After = "0" }),
+                CreateRun(title, true, FontSizeSmall)),
+            new Paragraph(new Run(new Text(""))),
+            new Paragraph(new Run(new Text(""))),
+            new Paragraph(new Run(new Text(""))),
+            new Paragraph(new Run(new Text(""))));
+    }
+
+    private static Run[] CreateRunWithBoldPrefix(
+        string prefix,
+        string text,
+        string fontSize)
+    {
+        return
+        [
+            CreateRun(prefix + " ", true, fontSize),
+        CreateRun(text, false, fontSize)
+        ];
     }
 }
