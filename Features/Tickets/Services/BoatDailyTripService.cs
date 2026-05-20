@@ -567,4 +567,112 @@ public class BoatDailyTripService
             crew,
             passengers);
     }
+
+    public async Task<BoatDailyTripOperationsReportModel> GetOperationsReportAsync(
+    BoatDailyTripOperationsFilter filter)
+    {
+        var passengerTrips = await _repo.GetPassengerTripsForOperationsAsync(filter);
+
+        var outboundTrips = passengerTrips
+            .Where(x => x.SegmentType == "Outbound")
+            .ToList();
+
+        decimal GetAgencyAmount(ReservationPassengerTrip x)
+        {
+            var agencyRate = x.Reservation.Agency?.RouteRates
+                .FirstOrDefault(r =>
+                    r.RouteId == x.BoatRouteSchedule.RouteId &&
+                    r.IsActive);
+
+            return agencyRate?.Price ?? x.TotalPrice;
+        }
+
+        decimal GetSellerCommission(ReservationPassengerTrip x)
+        {
+            var sellerCommission = x.Reservation.Seller?.RouteCommissions
+                .FirstOrDefault(r =>
+                    r.RouteId == x.BoatRouteSchedule.RouteId &&
+                    r.IsActive);
+
+            return sellerCommission?.Commission ?? 0;
+        }
+
+        var report = new BoatDailyTripOperationsReportModel
+        {
+            TotalPassengers = passengerTrips.Count,
+            OutboundPassengers = outboundTrips.Count,
+            ReturnPassengers = passengerTrips.Count(x => x.SegmentType == "Return"),
+            TotalAmount = outboundTrips.Sum(GetAgencyAmount)
+        };
+
+        report.ByTrip = passengerTrips
+            .GroupBy(x => new
+            {
+                x.TravelDate,
+                Boat = x.BoatRouteSchedule.Boat.Name,
+                RouteId = x.BoatRouteSchedule.RouteId,
+                Route = x.BoatRouteSchedule.Route.Origin + " - " + x.BoatRouteSchedule.Route.Destination,
+                Schedule = x.BoatRouteSchedule.Schedule.Name
+            })
+            .Select(g => new BoatDailyTripReportByTripItem
+            {
+                TravelDate = g.Key.TravelDate,
+                Boat = g.Key.Boat,
+                Route = g.Key.Route,
+                Schedule = g.Key.Schedule,
+                OutboundPassengers = g.Count(x => x.SegmentType == "Outbound"),
+                ReturnPassengers = g.Count(x => x.SegmentType == "Return"),
+                TotalPassengers = g.Count(),
+                TotalAmount = g
+                    .Where(x => x.SegmentType == "Outbound")
+                    .Sum(GetAgencyAmount)
+            })
+            .OrderBy(x => x.TravelDate)
+            .ThenBy(x => x.Boat)
+            .ThenBy(x => x.Schedule)
+            .ToList();
+
+        report.ByAgency = passengerTrips
+            .GroupBy(x => x.Reservation.Agency?.Name ?? "Sin agencia")
+            .Select(g => new BoatDailyTripReportByAgencyItem
+            {
+                Agency = g.Key,
+                OutboundPassengers = g.Count(x => x.SegmentType == "Outbound"),
+                ReturnPassengers = g.Count(x => x.SegmentType == "Return"),
+                TotalPassengers = g.Count(),
+                TotalAmount = g
+                    .Where(x => x.SegmentType == "Outbound")
+                    .Sum(GetAgencyAmount)
+            })
+            .OrderByDescending(x => x.TotalAmount)
+            .ThenBy(x => x.Agency)
+            .ToList();
+
+        report.BySeller = passengerTrips
+            .GroupBy(x => new
+            {
+                Seller = x.Reservation.Seller is null
+                    ? "Sin vendedor"
+                    : $"{x.Reservation.Seller.FirstName} {x.Reservation.Seller.LastName}".Trim(),
+
+                RouteId = x.BoatRouteSchedule.RouteId,
+                Route = x.BoatRouteSchedule.Route.Origin + " - " + x.BoatRouteSchedule.Route.Destination
+            })
+            .Select(g => new BoatDailyTripReportBySellerItem
+            {
+                Seller = g.Key.Seller,
+                Route = g.Key.Route,
+                OutboundPassengers = g.Count(x => x.SegmentType == "Outbound"),
+                ReturnPassengers = g.Count(x => x.SegmentType == "Return"),
+                TotalPassengers = g.Count(),
+                TotalAmount = g
+                    .Where(x => x.SegmentType == "Outbound")
+                    .Sum(GetSellerCommission)
+            })
+            .OrderBy(x => x.Seller)
+            .ThenBy(x => x.Route)
+            .ToList();
+
+        return report;
+    }
 }

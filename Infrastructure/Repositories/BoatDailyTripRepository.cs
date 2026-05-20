@@ -530,7 +530,7 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
     }
 
     public async Task<List<ReservationPassengerTrip>> GetPassengerTripsForOperationsAsync(
-        BoatDailyTripOperationsFilter filter)
+    BoatDailyTripOperationsFilter filter)
     {
         var tenantId = _tenant.GetTenantId();
 
@@ -540,8 +540,10 @@ public class BoatDailyTripRepository : BaseRepository<BoatDailyTrip>
             .AsNoTracking()
             .Include(x => x.Reservation)
                 .ThenInclude(x => x.Agency)
+                    .ThenInclude(x => x.RouteRates)
             .Include(x => x.Reservation)
                 .ThenInclude(x => x.Seller)
+                    .ThenInclude(x => x.RouteCommissions)
             .Include(x => x.Customer)
             .Include(x => x.BoatRouteSchedule)
                 .ThenInclude(x => x.Boat)

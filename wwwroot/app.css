@@ -39,30 +39,9 @@ h1:focus {
     text-align: start;
 }
 
-.ct-appbar {
-    backdrop-filter: blur(10px);
-}
-
-.ct-drawer {
-    border-right: 0 !important;
-}
-
-.ct-main-content {
-    min-height: 100vh;
-}
-
-.mud-paper {
-    border-radius: 16px !important;
-}
-
 .mud-button {
     border-radius: 10px !important;
     text-transform: none !important;
-}
-
-.mud-table {
-    border-radius: 14px;
-    overflow: hidden;
 }
 
 .fw-bold {
@@ -300,7 +279,7 @@ body {
     border: 1px solid #e5e7eb;
     border-radius: 18px;
     padding: 12px;
-    background: #ffffff;
+    background: var(--mud-palette-surface);
 }
 
 .ct-slot {
@@ -371,7 +350,7 @@ body {
     padding: 10px 12px !important;
     text-transform: none !important;
     border: 1px solid #e5e7eb !important;
-    background: #f9fafb !important;
+    background: var(--mud-palette-surface) !important;
 }
 
     .ct-slot-button:hover {
@@ -386,7 +365,7 @@ body {
 .ct-slot-time {
     font-weight: 700;
     font-size: 15px;
-    color: #111827;
+    color: var(--mud-palette-text-primary);
 }
 
 .ct-slot-capacity {
@@ -443,17 +422,16 @@ body {
 /* =========================================================
    LAYOUT
 ========================================================= */
+
 .ct-layout {
     min-height: 100vh;
-    background: #f4f6fb;
 }
 
 .ct-appbar {
     height: 72px !important;
-    background: #4f6fa9 !important;
-    color: #ffffff !important;
     box-shadow: none !important;
     padding: 0 28px !important;
+    backdrop-filter: blur(10px);
 }
 
 .ct-menu-button {
@@ -463,7 +441,6 @@ body {
 .ct-appbar-logo {
     font-weight: 900 !important;
     letter-spacing: -1px;
-    color: #ffffff;
 }
 
 .ct-top-icon {
@@ -473,18 +450,14 @@ body {
 .ct-user-name {
     font-weight: 700 !important;
     margin-right: 16px !important;
-    color: #ffffff;
 }
 
 .ct-logout-button {
-    color: #ffffff !important;
     font-weight: 700 !important;
     text-transform: none !important;
 }
 
 .ct-drawer {
-    background: #3f4143 !important;
-    color: #ffffff !important;
     border-right: none !important;
 }
 
@@ -496,41 +469,42 @@ body {
     justify-content: center;
 }
 
-
 .ct-drawer-brand {
     font-size: 30px;
     font-weight: 900;
     line-height: 1;
     letter-spacing: -1px;
-    color: #ffffff;
 }
-
-    .ct-drawer-brand span {
-        color: #ffffff;
-    }
 
 .ct-drawer-subtitle {
     margin-top: 6px;
     font-size: 10px;
     font-weight: 500;
     letter-spacing: .8px;
-    color: rgba(255, 255, 255, .75);
+    opacity: .75;
 }
 
 .ct-drawer-divider {
-    border-color: rgba(255,255,255,.28) !important;
+    opacity: .28;
+}
+
+.ct-main-content {
+    min-height: 100vh;
+    padding-top: 72px;
+}
+
+.ct-page-container {
+    padding: 48px 32px !important;
 }
 
 .ct-nav-menu {
     padding-top: 0 !important;
     margin-top: 0 !important;
-    color: #ffffff !important;
 }
 
 .ct-menu-title {
     padding: 16px 20px 10px 20px !important;
     margin: 0 !important;
-    color: #ffffff !important;
     font-size: 16px !important;
     font-weight: 700 !important;
 }
@@ -544,27 +518,25 @@ body {
         min-height: 44px;
     }
 
-    .ct-nav-menu .mud-nav-link .mud-nav-link-text,
-    .ct-nav-menu .mud-nav-group .mud-nav-link-text {
-        font-size: 16px !important;
-        font-weight: 700 !important;
-    }
+        .ct-nav-menu .mud-nav-link .mud-nav-link-text,
+        .ct-nav-menu .mud-nav-group .mud-nav-link-text {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+        }
 
-    .ct-nav-menu .mud-nav-link .mud-icon-root,
-    .ct-nav-menu .mud-nav-group .mud-icon-root {
-        color: #ffffff !important;
-        font-size: 26px !important;
-    }
+        .ct-nav-menu .mud-nav-link .mud-icon-root,
+        .ct-nav-menu .mud-nav-group .mud-icon-root {
+            font-size: 26px !important;
+        }
 
-    .ct-nav-menu .mud-nav-link:hover,
-    .ct-nav-menu .mud-nav-group > .mud-nav-link:hover {
-        background: rgba(255,255,255,.08) !important;
-    }
+        .ct-nav-menu .mud-nav-link:hover,
+        .ct-nav-menu .mud-nav-group > .mud-nav-link:hover {
+            background: rgba(255,255,255,.08) !important;
+        }
 
-    .ct-nav-menu .mud-nav-link.active:not(.mud-nav-link-disabled) {
-        background: rgba(255,255,255,.10) !important;
-        color: #ffffff !important;
-    }
+        .ct-nav-menu .mud-nav-link.active:not(.mud-nav-link-disabled) {
+            background: rgba(255,255,255,.10) !important;
+        }
 
 .ct-nav-menu .mud-navmenu-group .mud-collapse-container {
     padding-left: 20px;
@@ -578,20 +550,6 @@ body {
     .ct-nav-menu .mud-navmenu-group .mud-collapse-container .mud-icon-root {
         font-size: 26px !important;
     }
-
-.ct-main-content {
-    min-height: 100vh;
-    background: #f4f6fb;
-    padding-top: 72px;
-}
-
-.ct-page-container {
-    padding: 48px 32px !important;
-}
-
-.mud-main-content {
-    background: #f4f6fb;
-}
 
 @media (max-width: 960px) {
     .ct-appbar {

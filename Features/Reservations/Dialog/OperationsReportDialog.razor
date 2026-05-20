@@ -1,0 +1,174 @@
+﻿@using CheckTrip.Web.Features.Reservations.Models.Operations
+@using CheckTrip.Web.Features.Tickets.Services
+@using MudBlazor
+
+@inject BoatDailyTripService BoatDailyTripService
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudStack Class="py-6" AlignItems="AlignItems.Center" Spacing="2">
+                <MudProgressCircular Indeterminate="true" />
+                <MudText>Cargando reporte...</MudText>
+            </MudStack>
+        }
+        else if (_report is not null)
+        {
+            <MudStack Spacing="3">
+
+                <MudText Typo="Typo.h6">Resumen operativo</MudText>
+
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="pa-4">
+                            <MudText Typo="Typo.caption">Pasajeros</MudText>
+                            <MudText Typo="Typo.h5">@_report.OutboundPassengers</MudText>
+                        </MudPaper>
+                    </MudItem>
+
+                    @* 
+                    <MudItem xs="12" md="3">
+                        <MudPaper Class="pa-4">
+                            <MudText Typo="Typo.caption">Pasajeros total</MudText>
+                            <MudText Typo="Typo.h5">@_report.TotalPassengers</MudText>
+                        </MudPaper>
+                    </MudItem>
+
+                    <MudItem xs="12" md="3">
+                        <MudPaper Class="pa-4">
+                            <MudText Typo="Typo.caption">Retorno</MudText>
+                            <MudText Typo="Typo.h5">@_report.ReturnPassengers</MudText>
+                        </MudPaper>
+                    </MudItem>
+                    *@
+
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="pa-4">
+                            <MudText Typo="Typo.caption">Valor total</MudText>
+                            <MudText Typo="Typo.h5">@_report.TotalAmount.ToString("C2")</MudText>
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+
+                <MudTabs Rounded="true" Elevation="0">
+
+                    <MudTabPanel Text="Por viaje">
+                        <MudTable Items="_report.ByTrip" Dense="true" Hover="true" Bordered="true">
+                            <HeaderContent>
+                                <MudTh>Fecha</MudTh>
+                                <MudTh>Bote</MudTh>
+                                <MudTh>Ruta</MudTh>
+                                <MudTh>Horario</MudTh>
+                                <MudTh>Pasajeros</MudTh>
+
+                                @*
+                                <MudTh>Retorno</MudTh>
+                                <MudTh>Total pax</MudTh>
+                                *@
+
+                                <MudTh>Valor</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.TravelDate.ToString("yyyy-MM-dd")</MudTd>
+                                <MudTd>@context.Boat</MudTd>
+                                <MudTd>@context.Route</MudTd>
+                                <MudTd>@context.Schedule</MudTd>
+                                <MudTd>@context.OutboundPassengers</MudTd>
+
+                                @*
+                                <MudTd>@context.ReturnPassengers</MudTd>
+                                <MudTd>@context.TotalPassengers</MudTd>
+                                *@
+
+                                <MudTd>@context.TotalAmount.ToString("C2")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudTabPanel>
+
+                    <MudTabPanel Text="Por agencia">
+                        <MudTable Items="_report.ByAgency" Dense="true" Hover="true" Bordered="true">
+                            <HeaderContent>
+                                <MudTh>Agencia</MudTh>
+                                <MudTh>Pasajeros</MudTh>
+
+                                @*
+                                <MudTh>Retorno</MudTh>
+                                <MudTh>Total pax</MudTh>
+                                *@
+
+                                <MudTh>Valor</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Agency</MudTd>
+                                <MudTd>@context.OutboundPassengers</MudTd>
+
+                                @*
+                                <MudTd>@context.ReturnPassengers</MudTd>
+                                <MudTd>@context.TotalPassengers</MudTd>
+                                *@
+
+                                <MudTd>@context.TotalAmount.ToString("C2")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudTabPanel>
+                    <MudTabPanel Text="Por vendedor">
+                        <MudTable Items="_report.BySeller" Dense="true" Hover="true" Bordered="true">
+                            <HeaderContent>
+                                <MudTh>Vendedor</MudTh>
+                                <MudTh>Ruta</MudTh>
+                                <MudTh>Pasajeros</MudTh>
+
+                                @*
+            <MudTh>Retorno</MudTh>
+            <MudTh>Total pax</MudTh>
+            *@
+
+                                <MudTh>Comisión</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd>@context.Seller</MudTd>
+                                <MudTd>@context.Route</MudTd>
+                                <MudTd>@context.OutboundPassengers</MudTd>
+
+                                @*
+            <MudTd>@context.ReturnPassengers</MudTd>
+            <MudTd>@context.TotalPassengers</MudTd>
+            *@
+
+                                <MudTd>@context.TotalAmount.ToString("C2")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudTabPanel>
+                </MudTabs>
+            </MudStack>
+        }
+    </DialogContent>
+
+    <DialogActions>
+        <MudButton OnClick="Close">Cerrar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public BoatDailyTripOperationsFilter Filter { get; set; } = new();
+
+    private bool _loading = true;
+    private BoatDailyTripOperationsReportModel? _report;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+
+        _report = await BoatDailyTripService.GetOperationsReportAsync(Filter);
+
+        _loading = false;
+    }
+
+    private void Close()
+    {
+        MudDialog.Close();
+    }
+}
